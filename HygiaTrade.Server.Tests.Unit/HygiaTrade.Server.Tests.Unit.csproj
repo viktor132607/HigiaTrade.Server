@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <AssemblyName>HygiaTrade.Server.Tests.Unit</AssemblyName>
+        <RootNamespace>HygiaTrade.Server.Tests.Unit</RootNamespace>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="coverlet.collector" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Moq" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio" />
+    </ItemGroup>
+    
+    <ItemGroup>
+      <ProjectReference Include="..\HygiaTrade.Server.API\HygiaTrade.Server.API.csproj" />
+      <ProjectReference Include="..\HygiaTrade.Server.Data\HygiaTrade.Server.Data.csproj" />
+      <ProjectReference Include="..\HygiaTrade.Server.Domain\HygiaTrade.Server.Domain.csproj" />
+    </ItemGroup>
+
+</Project>

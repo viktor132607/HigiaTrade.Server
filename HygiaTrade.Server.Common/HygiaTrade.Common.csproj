@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\HygiaTrade.Core\HygiaTrade.Core.csproj" />
+    <ProjectReference Include="..\HygiaTrade.Data\HygiaTrade.Data.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>HygiaTrade.Common</AssemblyName>
+    <RootNamespace>HygiaTrade.Common</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

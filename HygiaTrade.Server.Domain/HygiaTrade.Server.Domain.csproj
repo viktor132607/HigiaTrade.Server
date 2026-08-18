@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\HygiaTrade.Server.Common\HygiaTrade.Server.Common.csproj" />
+    <ProjectReference Include="..\HygiaTrade.Server.Core\HygiaTrade.Server.Core.csproj" />
+    <ProjectReference Include="..\HygiaTrade.Server.Data\HygiaTrade.Server.Data.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>HygiaTrade.Server.Domain</AssemblyName>
+    <RootNamespace>HygiaTrade.Server.Domain</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

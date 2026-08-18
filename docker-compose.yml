@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16
+    container_name: hygiatrade-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${DB_NAME}"
+      POSTGRES_USER: "${DB_USER}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+    ports:
+      - "${DB_PORT}:5432"
+    networks:
+      - hygiatrade-network
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  hygiatrade-api:
+    build:
+      context: .
+      dockerfile: HygiaTrade.Server.API/Dockerfile
+    ports:
+      - "${PORT}:${PORT}"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT}"
+      ASPNETCORE_URLS: "http://*:${PORT}"
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD}"
+    depends_on:
+      - db
+    networks:
+      - hygiatrade-network
+
+networks:
+  hygiatrade-network:
+    driver: bridge
+
+volumes:
+  postgres-data:

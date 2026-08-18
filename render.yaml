@@ -1,0 +1,160 @@
+previews:
+  generation: off
+
+services:
+  - type: web
+    runtime: docker
+    name: hygiatrade-api
+    repo: https://github.com/IvanovvAlex/HygiaTrade.Server.git
+    branch: main
+    plan: free
+    region: frankfurt
+    dockerContext: .
+    dockerfilePath: ./HygiaTrade.Server.API/Dockerfile
+    dockerCommand: dotnet HygiaTrade.Server.API.dll
+    healthCheckPath: /openapi/v1.json
+    autoDeployTrigger: commit
+
+    envVars:
+      - key: PORT
+        value: "10000"
+
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:10000
+
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
+
+      - key: ConnectionStrings__DefaultConnection
+        fromDatabase:
+          name: hygiatrade-db
+          property: connectionString
+
+      - key: Jwt__Issuer
+        value: HygiaTrade.Server.API
+
+      - key: Jwt__Audience
+        value: HygiaTrade.Server.API.Client
+
+      - key: Jwt__Secret
+        sync: false
+
+      - key: Jwt__AccessTokenExpiryMinutes
+        value: "120"
+
+      - key: Jwt__RefreshTokenExpiryDays
+        value: "30"
+
+      - key: ClientApp__BaseUrl
+        value: https://hygiatrade-client.onrender.com
+
+      - key: Cors__AllowedOrigins__0
+        value: https://hygiatrade-client.onrender.com
+
+      - key: Cors__AllowedOrigins__1
+        value: http://localhost:5173
+
+      - key: Cors__AllowedOrigins__2
+        value: https://localhost:5173
+
+      - key: Cors__AllowedOrigins__3
+        value: http://127.0.0.1:5173
+
+      - key: Cors__AllowedOrigins__4
+        value: http://localhost:3000
+
+      - key: Cors__AllowedOrigins__5
+        value: https://localhost:3000
+
+      - key: Cors__AllowedOrigins__6
+        value: http://127.0.0.1:3000
+
+      - key: Email__DeliveryMode
+        value: Resend
+
+      - key: Email__SenderEmail
+        sync: false
+
+      - key: Email__SenderName
+        value: HygiaTrade
+
+      - key: Email__ResendApiKey
+        sync: false
+
+      - key: Email__ContactRecipientEmail
+        value: iliev132607@gmail.com
+
+      - key: Email__PasswordResetTokenExpiryMinutes
+        value: "30"
+
+      - key: Payments__OnlineProviderName
+        value: DemoSportPay
+
+      - key: Payments__OnlinePaymentLabel
+        value: Online card payment
+
+      - key: Payments__SupportedMethods__0
+        value: online-card
+
+      - key: Payments__SupportedMethods__1
+        value: bank-transfer
+
+      - key: Payments__BankTransfer__Beneficiary
+        value: HygiaTrade Ltd.
+
+      - key: Payments__BankTransfer__Iban
+        value: BG00DEMO12345678901234
+
+      - key: Payments__BankTransfer__Bic
+        value: DEMOBGSF
+
+      - key: Payments__BankTransfer__BankName
+        value: Demo Bank
+
+      - key: Payments__BankTransfer__ReferencePrefix
+        value: SPORT
+
+      - key: Inventory__LowStockThreshold
+        value: "10"
+
+      - key: DevelopmentSettings__ResetDatabaseOnStart
+        value: "false"
+
+      - key: DevelopmentSettings__ExposeEmailPreviewLinks
+        value: "false"
+
+  - type: web
+    runtime: static
+    name: hygiatrade-client
+    repo: https://github.com/IvanovvAlex/HygiaTrade.Client.git
+    branch: main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./out
+    autoDeployTrigger: commit
+
+    envVars:
+      - key: NODE_VERSION
+        value: 20.19.0
+
+      - key: SKIP_INSTALL_DEPS
+        value: "true"
+
+      - key: NEXT_PUBLIC_API_URL
+        value: https://hygiatrade-api.onrender.com/api
+
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases:
+  - name: hygiatrade-db
+    databaseName: hygiatradedb
+    user: hygiatrade
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"
+    ipAllowList: []
