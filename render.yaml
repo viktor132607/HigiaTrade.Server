@@ -4,7 +4,7 @@ previews:
 services:
   - type: web
     runtime: docker
-    name: hygiatrade-api
+    name: higiatrade-api
     repo: https://github.com/viktor132607/HigiaTrade.Server.git
     branch: main
     plan: free
@@ -24,7 +24,7 @@ services:
         value: "true"
       - key: ConnectionStrings__DefaultConnection
         fromDatabase:
-          name: hygiatrade-db
+          name: higiatrade-db
           property: connectionString
       - key: Jwt__Issuer
         value: HygiaTrade.Server.API
@@ -37,17 +37,15 @@ services:
       - key: Jwt__RefreshTokenExpiryDays
         value: "30"
       - key: ClientApp__BaseUrl
-        value: https://hygiatrade-client.onrender.com
+        value: https://higiatrade-client.onrender.com
       - key: Cors__AllowedOrigins__0
-        value: https://hygiatrade-client.onrender.com
+        value: https://higiatrade-client.onrender.com
       - key: Email__DeliveryMode
-        value: Resend
+        value: Console
       - key: Email__SenderEmail
-        sync: false
+        value: noreply@higiatrade.local
       - key: Email__SenderName
-        value: HygiaTrade
-      - key: Email__ResendApiKey
-        sync: false
+        value: HigiaTrade
       - key: Email__ContactRecipientEmail
         value: iliev132607@gmail.com
       - key: Email__PasswordResetTokenExpiryMinutes
@@ -61,7 +59,7 @@ services:
       - key: Payments__SupportedMethods__1
         value: bank-transfer
       - key: Payments__BankTransfer__Beneficiary
-        value: HygiaTrade Ltd.
+        value: HigiaTrade Ltd.
       - key: Payments__BankTransfer__Iban
         value: BG00DEMO12345678901234
       - key: Payments__BankTransfer__Bic
@@ -79,26 +77,26 @@ services:
 
   - type: web
     runtime: static
-    name: hygiatrade-client
+    name: higiatrade-client
     repo: https://github.com/viktor132607/HigiaTrade.Client.git
     branch: main
-    buildCommand: npm install && npm run build
+    buildCommand: npm ci && npm run build
     staticPublishPath: ./out
     autoDeployTrigger: commit
     envVars:
       - key: NODE_VERSION
         value: 20.19.0
       - key: NEXT_PUBLIC_API_URL
-        value: https://hygiatrade-api.onrender.com/api
+        value: https://higiatrade-api.onrender.com/api
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
 
 databases:
-  - name: hygiatrade-db
-    databaseName: hygiatradedb
-    user: hygiatrade
+  - name: higiatrade-db
+    databaseName: higiatradedb
+    user: higiatrade
     plan: free
     region: frankfurt
     postgresMajorVersion: "16"
