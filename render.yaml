@@ -10,7 +10,7 @@ services:
     plan: free
     region: frankfurt
     dockerContext: .
-    dockerfilePath: ./HygiaTrade.Server.API/Dockerfile
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /openapi/v1.json
     autoDeployTrigger: commit
     envVars:
