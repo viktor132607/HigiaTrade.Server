@@ -1,0 +1,20 @@
+name: Deploy Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore HygiaTrade.Server.sln
+      - run: dotnet build HygiaTrade.Server.sln --configuration Release --no-restore
+      - run: docker build -f HygiaTrade.Server.API/Dockerfile .
