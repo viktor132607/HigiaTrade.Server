@@ -17,8 +17,6 @@ public class SearchProductsRequest : PaginationModel
     
     public byte? MinRating { get; set; }
 
-
-    
     public Expression<Func<Data.Entities.Product, bool>> GetPredicate()
     {
         Expression<Func<Data.Entities.Product, bool>> result = s => !s.IsDeleted;
@@ -53,26 +51,26 @@ public class SearchProductsRequest : PaginationModel
 
     private Expression<Func<Data.Entities.Product, bool>> FilterByTitle()
     {
-        return x => EF.Functions.Like(x.Title.ToLower(), $"%{Title.ToLower()}%");
+        return x => EF.Functions.Like(x.Title.ToLower(), $"%{Title!.ToLower()}%");
     }
 
     private Expression<Func<Data.Entities.Product, bool>> FilterByCategory()
     {
-        return x => x.CategoryId == CategoryId.Value;
+        return x => x.CategoryId == CategoryId!.Value;
     }
 
     private Expression<Func<Data.Entities.Product, bool>> FilterByMinPrice()
     {
-        return x => x.DiscountedPrice >= MinPrice.Value;
+        return x => (x.DiscountedPrice > 0m ? x.DiscountedPrice : x.RegularPrice) >= MinPrice!.Value;
     }
 
     private Expression<Func<Data.Entities.Product, bool>> FilterByMaxPrice()
     {
-        return x => x.DiscountedPrice <= MaxPrice.Value;
+        return x => (x.DiscountedPrice > 0m ? x.DiscountedPrice : x.RegularPrice) <= MaxPrice!.Value;
     }
 
     private Expression<Func<Data.Entities.Product, bool>> FilterByMinRating()
     {
-        return x => x.Rating >= MinRating.Value;
+        return x => x.Rating >= MinRating!.Value;
     }
 }
