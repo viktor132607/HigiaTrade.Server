@@ -11,6 +11,7 @@ namespace HygiaTrade.Data
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Image> Images => Set<Image>();
+        public DbSet<StoredImage> StoredImages => Set<StoredImage>();
         public DbSet<Order> Orders => Set<Order>();
         public DbSet<OrderItem> OrderItems => Set<OrderItem>();
         public DbSet<Review> Reviews => Set<Review>();
