@@ -145,22 +145,26 @@ public class ProductService(
             throw new AppException("Invalid category.").SetStatusCode(400);
         }
 
+        decimal wholesalePrice = request.WholesalePrice ?? existingProduct.WholesalePrice;
+        uint wholesaleMinQuantity = request.WholesaleMinQuantity ?? existingProduct.WholesaleMinQuantity;
+        decimal vatRate = request.VatRate ?? existingProduct.VatRate;
+
         ValidatePricing(
             request.RegularPrice,
             request.DiscountPercentage,
             request.DiscountedPrice,
-            request.WholesalePrice,
-            request.WholesaleMinQuantity,
-            request.VatRate);
+            wholesalePrice,
+            wholesaleMinQuantity,
+            vatRate);
 
         existingProduct.Title = request.Title;
         existingProduct.Description = request.Description;
         existingProduct.MainImageUrl = request.MainImageUrl;
         existingProduct.Quantity = request.Quantity;
         existingProduct.CategoryId = request.CategoryId;
-        existingProduct.WholesalePrice = ProductPricingCalculator.RoundMoney(request.WholesalePrice);
-        existingProduct.WholesaleMinQuantity = request.WholesaleMinQuantity;
-        existingProduct.VatRate = request.VatRate;
+        existingProduct.WholesalePrice = ProductPricingCalculator.RoundMoney(wholesalePrice);
+        existingProduct.WholesaleMinQuantity = wholesaleMinQuantity;
+        existingProduct.VatRate = vatRate;
 
         ApplyRetailPricing(
             existingProduct,
