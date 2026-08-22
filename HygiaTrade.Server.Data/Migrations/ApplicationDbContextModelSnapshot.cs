@@ -105,6 +105,14 @@ namespace HygiaTrade.Data.Migrations
                     b.Property<string>("Names")
                         .HasColumnType("text");
 
+                    b.Property<decimal>("OrderSubtotalExclVat")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("OrderVatAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<decimal>("OrderTotalPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -150,6 +158,9 @@ namespace HygiaTrade.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("PricingTier")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid");
 
@@ -160,6 +171,10 @@ namespace HygiaTrade.Data.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<decimal>("SinglePriceExclVat")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("text");
@@ -167,6 +182,18 @@ namespace HygiaTrade.Data.Migrations
                     b.Property<decimal>("TotalPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("TotalPriceExclVat")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("VatRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
 
                     b.HasKey("Id");
 
@@ -223,6 +250,17 @@ namespace HygiaTrade.Data.Migrations
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<decimal>("VatRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<long>("WholesaleMinQuantity")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("WholesalePrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
 
