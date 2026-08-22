@@ -17,4 +17,4 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet restore HygiaTrade.Server.sln
       - run: dotnet build HygiaTrade.Server.sln --configuration Release --no-restore
-      - run: docker build -f HygiaTrade.Server.API/Dockerfile .
+      - run: docker build -f Dockerfile .
