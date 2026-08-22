@@ -17,10 +17,10 @@ public class UpdateProductRequest
     public byte DiscountPercentage { get; set; }
     public decimal DiscountedPrice { get; set; }
 
-    // WholesalePrice is VAT-inclusive. Set both fields to 0 to disable wholesale pricing.
-    public decimal WholesalePrice { get; set; }
-    public uint WholesaleMinQuantity { get; set; }
-    public decimal VatRate { get; set; } = 20m;
+    // Nullable for backwards compatibility with the current frontend. Omitted values preserve existing settings.
+    public decimal? WholesalePrice { get; set; }
+    public uint? WholesaleMinQuantity { get; set; }
+    public decimal? VatRate { get; set; }
 
     public uint Quantity { get; set; }
 
