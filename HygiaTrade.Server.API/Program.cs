@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -35,6 +36,19 @@ builder.Services.Configure<DevelopmentOptions>(
 
 builder.Services.Configure<InventoryOptions>(
 	builder.Configuration.GetSection(InventoryOptions.SectionName));
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+	options.ForwardedHeaders =
+		ForwardedHeaders.XForwardedFor |
+		ForwardedHeaders.XForwardedProto;
+
+	// Render terminates TLS in front of the container and forwards the original
+	// request scheme. Trust the platform proxy headers so HTTPS redirection does
+	// not redirect an already-HTTPS public request back to itself.
+	options.KnownNetworks.Clear();
+	options.KnownProxies.Clear();
+});
 
 builder.Services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
 
@@ -150,6 +164,8 @@ WebApplication app = builder.Build();
 app.Logger.LogInformation(
 	"PostgreSQL connection resolved from configuration key {DatabaseConnectionSource}.",
 	resolvedDatabaseConnection.SourceKey);
+
+app.UseForwardedHeaders();
 
 app.UseMiddleware<ExceptionHandlerMiddleware>();
 
