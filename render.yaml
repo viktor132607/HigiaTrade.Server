@@ -4,7 +4,7 @@ previews:
 services:
   - type: web
     runtime: docker
-    name: higiatrade-api
+    name: higiatrade-server
     repo: https://github.com/viktor132607/HigiaTrade.Server.git
     branch: main
     plan: free
@@ -24,12 +24,12 @@ services:
         value: "true"
       - key: ConnectionStrings__DefaultConnection
         fromDatabase:
-          name: higiatrade-db
+          name: higiatradedb
           property: connectionString
       - key: Jwt__Issuer
-        value: HygiaTrade.Server.API
+        value: HygiaTrade.API
       - key: Jwt__Audience
-        value: HygiaTrade.Server.API.Client
+        value: HygiaTrade.API.Client
       - key: Jwt__Secret
         sync: false
       - key: Jwt__AccessTokenExpiryMinutes
@@ -37,15 +37,17 @@ services:
       - key: Jwt__RefreshTokenExpiryDays
         value: "30"
       - key: ClientApp__BaseUrl
-        value: https://higiatrade-client.onrender.com
+        value: https://higiatrade.com
       - key: Cors__AllowedOrigins__0
-        value: https://higiatrade-client.onrender.com
+        value: https://higiatrade.com
+      - key: Cors__AllowedOrigins__1
+        value: https://www.higiatrade.com
       - key: Email__DeliveryMode
         value: Console
       - key: Email__SenderEmail
-        value: noreply@higiatrade.local
+        value: noreply@higiatrade.com
       - key: Email__SenderName
-        value: HigiaTrade
+        value: HygiaTrade
       - key: Email__ContactRecipientEmail
         value: iliev132607@gmail.com
       - key: Email__PasswordResetTokenExpiryMinutes
@@ -59,7 +61,7 @@ services:
       - key: Payments__SupportedMethods__1
         value: bank-transfer
       - key: Payments__BankTransfer__Beneficiary
-        value: HigiaTrade Ltd.
+        value: HygiaTrade Ltd.
       - key: Payments__BankTransfer__Iban
         value: BG00DEMO12345678901234
       - key: Payments__BankTransfer__Bic
@@ -75,28 +77,10 @@ services:
       - key: DevelopmentSettings__ExposeEmailPreviewLinks
         value: "false"
 
-  - type: web
-    runtime: static
-    name: higiatrade-client
-    repo: https://github.com/viktor132607/HigiaTrade.Client.git
-    branch: main
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./out
-    autoDeployTrigger: commit
-    envVars:
-      - key: NODE_VERSION
-        value: 20.19.0
-      - key: NEXT_PUBLIC_API_URL
-        value: https://higiatrade-api.onrender.com/api
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-
 databases:
-  - name: higiatrade-db
+  - name: higiatradedb
     databaseName: higiatradedb
-    user: higiatrade
+    user: higiatradedb_user
     plan: free
     region: frankfurt
     postgresMajorVersion: "16"
