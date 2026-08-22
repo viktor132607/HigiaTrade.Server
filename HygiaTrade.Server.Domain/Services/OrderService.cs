@@ -12,6 +12,7 @@ using HygiaTrade.Data.Entities;
 using HygiaTrade.Data.Interfaces;
 using HygiaTrade.Data.PaginationAndFiltering;
 using HygiaTrade.Domain.Interfaces;
+using HygiaTrade.Domain.Pricing;
 
 namespace HygiaTrade.Domain.Services;
 
@@ -123,6 +124,12 @@ public class OrderService(
 
         OrderItem? existingItem = order.Items.FirstOrDefault(i => i.ProductId == request.ProductId);
         int nextQuantity = (existingItem?.Quantity ?? 0) + request.Quantity;
+
+        if (nextQuantity <= 0)
+        {
+            throw new AppException("Quantity must be greater than zero.").SetStatusCode(400);
+        }
+
         if (product.Quantity < nextQuantity)
         {
             throw new AppException("Insufficient stock for the selected quantity.").SetStatusCode(409);
@@ -130,32 +137,28 @@ public class OrderService(
 
         if (existingItem != null)
         {
-            existingItem.Quantity += request.Quantity;
-            existingItem.TotalPrice = existingItem.Quantity * existingItem.SinglePrice;
+            ApplyCurrentPricing(existingItem, product, nextQuantity);
         }
         else
         {
-            decimal singlePrice = product.DiscountedPrice != 0m
-                ? product.DiscountedPrice
-                : product.RegularPrice;
-
             OrderItem newOrderItem = new()
             {
                 OrderId = order.Id,
                 ProductId = request.ProductId,
                 Quantity = request.Quantity,
-                SinglePrice = singlePrice,
-                TotalPrice = request.Quantity * singlePrice,
+                SinglePrice = 0m,
+                TotalPrice = 0m,
                 PrimaryImageUri = product.MainImageUrl,
                 Title = product.Title,
             };
+
+            ApplyCurrentPricing(newOrderItem, product, request.Quantity);
 
             await orderItemRepository.AddAsync(newOrderItem);
             order.Items.Add(newOrderItem);
         }
 
         UpdateOrderPrices(order);
-
         await orderRepository.UpdateAsync(order);
 
         return MapOrderToResponse(order);
@@ -190,11 +193,16 @@ public class OrderService(
         }
         else
         {
-            item.TotalPrice = item.Quantity * item.SinglePrice;
+            Product? product = await productRepository.GetByIdAsync(item.ProductId);
+            if (product == null)
+            {
+                throw new AppException("Product not found").SetStatusCode(404);
+            }
+
+            ApplyCurrentPricing(item, product, item.Quantity);
         }
 
         UpdateOrderPrices(order);
-
         await orderRepository.UpdateAsync(order);
 
         return MapOrderToResponse(order);
@@ -220,6 +228,8 @@ public class OrderService(
             ? "standard-courier"
             : request.DeliveryMethod.Trim();
 
+        // Reprice once immediately before checkout so quantity thresholds, VAT and current prices are consistent.
+        await RefreshCurrentCartPricingAsync(order);
         await EnsureStockAvailabilityAsync(order);
 
         order.Names = request.Names;
@@ -242,17 +252,54 @@ public class OrderService(
         return true;
     }
 
-    private void UpdateOrderPrices(Order order)
+    private static void ApplyCurrentPricing(OrderItem item, Product product, int quantity)
     {
-        order.OrderTotalPrice = order.Items.Sum(i => i.TotalPrice);
+        ProductPriceBreakdown pricing = ProductPricingCalculator.Calculate(product, quantity);
+
+        item.Quantity = quantity;
+        item.SinglePrice = pricing.UnitPriceInclVat;
+        item.SinglePriceExclVat = pricing.UnitPriceExclVat;
+        item.TotalPrice = ProductPricingCalculator.RoundMoney(pricing.UnitPriceInclVat * quantity);
+        item.TotalPriceExclVat = ProductPricingCalculator.GrossToNet(item.TotalPrice, pricing.VatRate);
+        item.VatAmount = ProductPricingCalculator.RoundMoney(item.TotalPrice - item.TotalPriceExclVat);
+        item.VatRate = pricing.VatRate;
+        item.PricingTier = pricing.PricingTier;
     }
 
-    private OrderResponse MapOrderToResponse(Order order)
+    private async Task RefreshCurrentCartPricingAsync(Order order)
+    {
+        foreach (OrderItem item in order.Items)
+        {
+            Product? product = await productRepository.GetByIdAsync(item.ProductId);
+            if (product == null)
+            {
+                throw new AppException($"Product '{item.Title}' is no longer available.").SetStatusCode(409);
+            }
+
+            ApplyCurrentPricing(item, product, item.Quantity);
+        }
+
+        UpdateOrderPrices(order);
+    }
+
+    private static void UpdateOrderPrices(Order order)
+    {
+        order.OrderSubtotalExclVat = ProductPricingCalculator.RoundMoney(
+            order.Items.Sum(i => i.TotalPriceExclVat));
+        order.OrderVatAmount = ProductPricingCalculator.RoundMoney(
+            order.Items.Sum(i => i.VatAmount));
+        order.OrderTotalPrice = ProductPricingCalculator.RoundMoney(
+            order.Items.Sum(i => i.TotalPrice));
+    }
+
+    private static OrderResponse MapOrderToResponse(Order order)
     {
         return new OrderResponse
         {
             Id = order.Id,
             UserId = order.UserId,
+            OrderSubtotalExclVat = order.OrderSubtotalExclVat,
+            OrderVatAmount = order.OrderVatAmount,
             OrderTotalPrice = order.OrderTotalPrice,
             Names = order.Names,
             PostalCode = order.PostalCode,
@@ -267,6 +314,11 @@ public class OrderService(
                     ProductId = i.ProductId,
                     SinglePrice = i.SinglePrice,
                     TotalPrice = i.TotalPrice,
+                    SinglePriceExclVat = i.SinglePriceExclVat,
+                    TotalPriceExclVat = i.TotalPriceExclVat,
+                    VatAmount = i.VatAmount,
+                    VatRate = i.VatRate,
+                    PricingTier = i.PricingTier.ToString(),
                     Quantity = i.Quantity,
                     PrimaryImageUri = i.PrimaryImageUri,
                     Title = i.Title
@@ -304,7 +356,6 @@ public class OrderService(
             }
 
             product.Quantity -= (uint)item.Quantity;
-
             await productRepository.UpdateAsync(product);
         }
     }
