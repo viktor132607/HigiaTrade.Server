@@ -28,12 +28,44 @@ namespace HygiaTrade.Data
                 .Property(p => p.DiscountedPrice)
                 .HasPrecision(18, 2);
 
+            builder.Entity<Product>()
+                .Property(p => p.WholesalePrice)
+                .HasPrecision(18, 2);
+
+            builder.Entity<Product>()
+                .Property(p => p.VatRate)
+                .HasPrecision(5, 2);
+
             builder.Entity<OrderItem>()
                 .Property(oi => oi.SinglePrice)
                 .HasPrecision(18, 2);
 
             builder.Entity<OrderItem>()
                 .Property(oi => oi.TotalPrice)
+                .HasPrecision(18, 2);
+
+            builder.Entity<OrderItem>()
+                .Property(oi => oi.SinglePriceExclVat)
+                .HasPrecision(18, 2);
+
+            builder.Entity<OrderItem>()
+                .Property(oi => oi.TotalPriceExclVat)
+                .HasPrecision(18, 2);
+
+            builder.Entity<OrderItem>()
+                .Property(oi => oi.VatAmount)
+                .HasPrecision(18, 2);
+
+            builder.Entity<OrderItem>()
+                .Property(oi => oi.VatRate)
+                .HasPrecision(5, 2);
+
+            builder.Entity<Order>()
+                .Property(o => o.OrderSubtotalExclVat)
+                .HasPrecision(18, 2);
+
+            builder.Entity<Order>()
+                .Property(o => o.OrderVatAmount)
                 .HasPrecision(18, 2);
 
             builder.Entity<Order>()
