@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using HygiaTrade.API.Helpers;
-using HygiaTrade.Common.Requests.Category;
 using HygiaTrade.Common.Requests.Product;
 using HygiaTrade.Core.StaticClasses;
 using HygiaTrade.Domain.Interfaces;
@@ -24,13 +23,24 @@ public class ProductsController(IProductService productService) : ControllerBase
     [HttpGet("best-sellers")]
     public async Task<IActionResult> GetBestSellersAsync(int numOfBestSellers)
     {
-        return await ControllerProcessor.ProcessAsync(() => productService.GetBestSellersAsync(numOfBestSellers), this, true);
+        return await ControllerProcessor.ProcessAsync(
+            () => productService.GetBestSellersAsync(numOfBestSellers),
+            this,
+            true);
     }
     
     [HttpGet("{id}")]
     public async Task<IActionResult> GetByIdAsync(Guid id)
     {
         return await ControllerProcessor.ProcessAsync(() => productService.GetByIdAsync(id), this);
+    }
+
+    [HttpGet("{id}/price")]
+    public async Task<IActionResult> GetPriceQuoteAsync(Guid id, [FromQuery] int quantity = 1)
+    {
+        return await ControllerProcessor.ProcessAsync(
+            () => productService.GetPriceQuoteAsync(id, quantity),
+            this);
     }
 
     [Authorize(Roles = Roles.Admin)]
