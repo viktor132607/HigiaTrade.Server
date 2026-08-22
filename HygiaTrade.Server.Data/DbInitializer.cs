@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using HygiaTrade.Data.Entities;
 using HygiaTrade.Data.Seed;
 
 namespace HygiaTrade.Data
