@@ -40,6 +40,39 @@ public class ProductService(
         return ToProductResponse(product);
     }
 
+    public async Task<ProductPriceQuoteResponse> GetPriceQuoteAsync(Guid id, int quantity)
+    {
+        if (quantity <= 0)
+        {
+            throw new AppException("Quantity must be greater than zero.").SetStatusCode(400);
+        }
+
+        Product? product = await productRepository.GetByIdAsync(id);
+        if (product == null)
+        {
+            throw new AppException("Product not found.").SetStatusCode(404);
+        }
+
+        ProductPriceBreakdown pricing = ProductPricingCalculator.Calculate(product, quantity);
+        decimal totalInclVat = ProductPricingCalculator.RoundMoney(pricing.UnitPriceInclVat * quantity);
+        decimal totalExclVat = ProductPricingCalculator.GrossToNet(totalInclVat, pricing.VatRate);
+        decimal vatAmount = ProductPricingCalculator.RoundMoney(totalInclVat - totalExclVat);
+
+        return new ProductPriceQuoteResponse
+        {
+            ProductId = product.Id,
+            Quantity = quantity,
+            PricingTier = pricing.PricingTier.ToString(),
+            WholesaleMinQuantity = product.WholesaleMinQuantity,
+            VatRate = pricing.VatRate,
+            UnitPriceExclVat = pricing.UnitPriceExclVat,
+            UnitPriceInclVat = pricing.UnitPriceInclVat,
+            TotalExclVat = totalExclVat,
+            VatAmount = vatAmount,
+            TotalInclVat = totalInclVat,
+        };
+    }
+
     public async Task<ProductResponse?> CreateAsync(CreateProductRequest request)
     {
         Category? category = await categoryRepository.GetByIdAsync(request.CategoryId);
