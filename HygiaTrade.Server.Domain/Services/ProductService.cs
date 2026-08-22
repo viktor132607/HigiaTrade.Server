@@ -8,63 +8,26 @@ using HygiaTrade.Data.Entities;
 using HygiaTrade.Data.Interfaces;
 using HygiaTrade.Data.PaginationAndFiltering;
 using HygiaTrade.Domain.Interfaces;
+using HygiaTrade.Domain.Pricing;
 
 namespace HygiaTrade.Domain.Services;
 
-public class ProductService(IProductRepository productRepository, ICategoryRepository categoryRepository, IImageRepository imageRepository) : IProductService
+public class ProductService(
+    IProductRepository productRepository,
+    ICategoryRepository categoryRepository,
+    IImageRepository imageRepository) : IProductService
 {
     public async Task<IEnumerable<ProductResponse>?> GetAsync()
     {
         IEnumerable<Product> products = await productRepository.GetAllAsync();
-
-        return products.Select(product => new ProductResponse()
-        {
-            Id = product.Id,
-            Title = product.Title,
-            Description = product.Description,
-            MainImageUrl = product.MainImageUrl,
-            RegularPrice = product.RegularPrice,
-            DiscountPercentage = product.DiscountPercentage,
-            DiscountedPrice = product.DiscountedPrice,
-            Rating = product.Rating,
-            Quantity = product.Quantity,
-            CategoryId = product.CategoryId,
-            CategoryName = product.Category?.Name ?? string.Empty,
-            SecondaryImages = product.SecondaryImages
-                .Select(img => new ImageResponse
-                {
-                    Id = img.Id,
-                    Uri = img.Uri
-                })
-                .ToList(),        
-        });
+        return products.Select(ToProductResponse);
     }
 
     public async Task<IEnumerable<ProductResponse>?> GetBestSellersAsync(int numOfBestSellers)
     {
         IEnumerable<Product> products = await productRepository.GetBestSellersAsync(numOfBestSellers);
-
-        return products.Select(product => new ProductResponse()
-        {
-            Id = product.Id,
-            Title = product.Title,
-            Description = product.Description,
-            MainImageUrl = product.MainImageUrl,
-            RegularPrice = product.RegularPrice,
-            DiscountPercentage = product.DiscountPercentage,
-            DiscountedPrice = product.DiscountedPrice,
-            Rating = product.Rating,
-            Quantity = product.Quantity,
-            CategoryId = product.CategoryId,
-            CategoryName = product.Category?.Name ?? string.Empty,
-            SecondaryImages = product.SecondaryImages
-                .Select(img => new ImageResponse
-                {
-                    Id = img.Id,
-                    Uri = img.Uri
-                })
-                .ToList(), 
-        });    }
+        return products.Select(ToProductResponse);
+    }
 
     public async Task<ProductResponse?> GetByIdAsync(Guid id)
     {
@@ -74,27 +37,7 @@ public class ProductService(IProductRepository productRepository, ICategoryRepos
             throw new AppException("Product not found.").SetStatusCode(404);
         }
 
-        return new()
-        {
-            Id = product.Id,
-            Title = product.Title,
-            Description = product.Description,
-            MainImageUrl = product.MainImageUrl,
-            RegularPrice = product.RegularPrice,
-            DiscountPercentage = product.DiscountPercentage,
-            DiscountedPrice = product.DiscountedPrice,
-            Rating = product.Rating,
-            Quantity = product.Quantity,
-            CategoryId = product.CategoryId,
-            CategoryName = product.Category?.Name ?? string.Empty,
-            SecondaryImages = product.SecondaryImages
-                .Select(img => new ImageResponse
-                {
-                    Id = img.Id,
-                    Uri = img.Uri
-                })
-                .ToList(), 
-        };
+        return ToProductResponse(product);
     }
 
     public async Task<ProductResponse?> CreateAsync(CreateProductRequest request)
@@ -104,35 +47,34 @@ public class ProductService(IProductRepository productRepository, ICategoryRepos
         {
             throw new AppException("Invalid category.").SetStatusCode(400);
         }
-        
-        
+
+        ValidatePricing(
+            request.RegularPrice,
+            request.DiscountPercentage,
+            request.DiscountedPrice,
+            request.WholesalePrice,
+            request.WholesaleMinQuantity,
+            request.VatRate);
+
         Product product = new()
         {
             Title = request.Title,
             Description = request.Description,
             MainImageUrl = request.MainImageUrl,
-            Rating = 3,            
+            Rating = 3,
             Quantity = request.Quantity,
             CategoryId = request.CategoryId,
+            WholesalePrice = ProductPricingCalculator.RoundMoney(request.WholesalePrice),
+            WholesaleMinQuantity = request.WholesaleMinQuantity,
+            VatRate = request.VatRate,
         };
 
-        if (product.RegularPrice != request.RegularPrice)
-        {
-            product.RegularPrice = request.RegularPrice;
-        }
+        ApplyRetailPricing(
+            product,
+            request.RegularPrice,
+            request.DiscountPercentage,
+            request.DiscountedPrice);
 
-        if (product.DiscountPercentage != request.DiscountPercentage)
-        {
-            product.DiscountPercentage = request.DiscountPercentage;
-            product.DiscountedPrice = product.RegularPrice * (1 - product.DiscountPercentage / 100m);
-        }
-
-        if (product.DiscountedPrice != request.DiscountedPrice && request.DiscountedPrice != 0)
-        {
-            product.DiscountedPrice = request.DiscountedPrice;
-            product.DiscountPercentage = (byte)((1 - product.DiscountedPrice / product.RegularPrice) * 100m);
-        }
-        
         product = await productRepository.AddAsync(product)
             ?? throw new InvalidOperationException("Failed to persist product.");
 
@@ -145,115 +87,79 @@ public class ProductService(IProductRepository productRepository, ICategoryRepos
                 Uri = imageRequest.Uri,
                 ProductId = product.Id
             };
+
             images.Add(image);
             await imageRepository.AddAsync(image);
         }
-        
-        
-        return new()
-        {
-            Id = product.Id,
-            Title = product.Title,
-            Description = product.Description,
-            MainImageUrl = product.MainImageUrl,
-            RegularPrice = product.RegularPrice,
-            DiscountPercentage = product.DiscountPercentage,
-            DiscountedPrice = product.DiscountedPrice,
-            Rating = product.Rating,
-            Quantity = product.Quantity,
-            CategoryId = product.CategoryId,
-            CategoryName = category.Name,
-            SecondaryImages = images
-                .Select(img => new ImageResponse
-                {
-                    Id = img.Id,
-                    Uri = img.Uri
-                })
-                .ToList(), 
-        };
+
+        product.Category = category;
+        product.SecondaryImages = images;
+
+        return ToProductResponse(product);
     }
 
     public async Task<ProductResponse?> UpdateAsync(UpdateProductRequest request)
-{
-    Product? existingProduct = await productRepository.GetByIdAsync(request.Id);
-    if (existingProduct == null)
     {
-        throw new AppException("Product not found.").SetStatusCode(404);
-    }
-
-    Category? category = await categoryRepository.GetByIdAsync(request.CategoryId);
-    if (category == null)
-    {
-        throw new AppException("Invalid category.").SetStatusCode(400);
-    }
-
-    existingProduct.Title = request.Title;
-    existingProduct.Description = request.Description;
-    existingProduct.MainImageUrl = request.MainImageUrl;
-    existingProduct.Quantity = request.Quantity;
-    existingProduct.CategoryId = request.CategoryId;
-
-    if (existingProduct.RegularPrice != request.RegularPrice)
-    {
-        existingProduct.RegularPrice = request.RegularPrice;
-    }
-
-    if (existingProduct.DiscountPercentage != request.DiscountPercentage)
-    {
-        existingProduct.DiscountPercentage = request.DiscountPercentage;
-        existingProduct.DiscountedPrice = existingProduct.RegularPrice * (1 - existingProduct.DiscountPercentage / 100m);
-    }
-
-    if (existingProduct.DiscountedPrice != request.DiscountedPrice && request.DiscountedPrice != 0)
-    {
-        existingProduct.DiscountedPrice = request.DiscountedPrice;
-        existingProduct.DiscountPercentage = (byte)((1 - existingProduct.DiscountedPrice / existingProduct.RegularPrice) * 100m);
-    }
-
-    foreach (Image image in existingProduct.SecondaryImages.ToList())
-    {
-        await imageRepository.DeleteAsync(image.Id);
-    }
-
-    existingProduct.SecondaryImages.Clear();
-
-    foreach (UpdateImageRequest imageRequest in request.SecondaryImages)
-    {
-        Image newImage = new()
+        Product? existingProduct = await productRepository.GetByIdAsync(request.Id);
+        if (existingProduct == null)
         {
-            Uri = imageRequest.Uri,
-            ProductId = existingProduct.Id
-        };
+            throw new AppException("Product not found.").SetStatusCode(404);
+        }
 
-        existingProduct.SecondaryImages.Add(newImage);
-        await imageRepository.AddAsync(newImage);
-    }
+        Category? category = await categoryRepository.GetByIdAsync(request.CategoryId);
+        if (category == null)
+        {
+            throw new AppException("Invalid category.").SetStatusCode(400);
+        }
 
-    Product updatedProduct = await productRepository.UpdateAsync(existingProduct)
-        ?? throw new InvalidOperationException("Failed to persist product updates.");
+        ValidatePricing(
+            request.RegularPrice,
+            request.DiscountPercentage,
+            request.DiscountedPrice,
+            request.WholesalePrice,
+            request.WholesaleMinQuantity,
+            request.VatRate);
 
-    return new()
-    {
-        Id = updatedProduct.Id,
-        Title = updatedProduct.Title,
-        Description = updatedProduct.Description,
-        MainImageUrl = updatedProduct.MainImageUrl,
-        RegularPrice = updatedProduct.RegularPrice,
-        DiscountPercentage = updatedProduct.DiscountPercentage,
-        DiscountedPrice = updatedProduct.DiscountedPrice,
-        Rating = updatedProduct.Rating,
-        Quantity = updatedProduct.Quantity,
-        CategoryId = updatedProduct.CategoryId,
-        CategoryName = category.Name,
-        SecondaryImages = updatedProduct.SecondaryImages
-            .Select(img => new ImageResponse
+        existingProduct.Title = request.Title;
+        existingProduct.Description = request.Description;
+        existingProduct.MainImageUrl = request.MainImageUrl;
+        existingProduct.Quantity = request.Quantity;
+        existingProduct.CategoryId = request.CategoryId;
+        existingProduct.WholesalePrice = ProductPricingCalculator.RoundMoney(request.WholesalePrice);
+        existingProduct.WholesaleMinQuantity = request.WholesaleMinQuantity;
+        existingProduct.VatRate = request.VatRate;
+
+        ApplyRetailPricing(
+            existingProduct,
+            request.RegularPrice,
+            request.DiscountPercentage,
+            request.DiscountedPrice);
+
+        foreach (Image image in existingProduct.SecondaryImages.ToList())
+        {
+            await imageRepository.DeleteAsync(image.Id);
+        }
+
+        existingProduct.SecondaryImages.Clear();
+
+        foreach (UpdateImageRequest imageRequest in request.SecondaryImages)
+        {
+            Image newImage = new()
             {
-                Id = img.Id,
-                Uri = img.Uri
-            })
-            .ToList()
-    };
-}
+                Uri = imageRequest.Uri,
+                ProductId = existingProduct.Id
+            };
+
+            existingProduct.SecondaryImages.Add(newImage);
+            await imageRepository.AddAsync(newImage);
+        }
+
+        Product updatedProduct = await productRepository.UpdateAsync(existingProduct)
+            ?? throw new InvalidOperationException("Failed to persist product updates.");
+
+        updatedProduct.Category = category;
+        return ToProductResponse(updatedProduct);
+    }
 
     public async Task<bool> DeleteAsync(Guid id)
     {
@@ -273,14 +179,11 @@ public class ProductService(IProductRepository productRepository, ICategoryRepos
 
     public async Task<Paginated<ProductsResponse>> SearchProductsAsync(SearchProductsRequest request)
     {
-        if (request == null)
-        {
-            request = new();
-        }
-        
+        request ??= new SearchProductsRequest();
+
         Filter<Product> filter = new()
         {
-            Includes = 
+            Includes =
             [
                 x => x.Category!
             ],
@@ -293,42 +196,175 @@ public class ProductService(IProductRepository productRepository, ICategoryRepos
 
         Paginated<Product> result = await productRepository.SearchAsync(filter);
 
-        List<ProductsResponse> responses = new();
-
-        foreach (Product product in result.Items!)
+        return new Paginated<ProductsResponse>
         {
-            ProductsResponse response = new()
-            {
-                Id = product.Id,
-                Title = product.Title,
-                Description = product.Description,
-                MainImageUrl = product.MainImageUrl,
-                RegularPrice = product.RegularPrice,
-                DiscountPercentage = product.DiscountPercentage,
-                DiscountedPrice = product.DiscountedPrice,
-                Quantity = product.Quantity,
-                Rating = product.Rating,
-                CategoryId = product.CategoryId,
-                CategoryName = product.Category?.Name ?? string.Empty,
-                SecondaryImages = product.SecondaryImages
-                    .Select(si => new ImageResponse
-                    {
-                        Id = si.Id,
-                        Uri = si.Uri
-                    })
-                    .ToList()                
-            };
-
-            responses.Add(response);
-        }
-
-        Paginated<ProductsResponse> paginated = new()
-        {
-            Items = responses,
+            Items = result.Items?.Select(ToProductsResponse).ToList() ?? new List<ProductsResponse>(),
             TotalCount = result.TotalCount
         };
-
-        return paginated;
     }
-    
+
+    private static void ValidatePricing(
+        decimal regularPrice,
+        byte discountPercentage,
+        decimal discountedPrice,
+        decimal wholesalePrice,
+        uint wholesaleMinQuantity,
+        decimal vatRate)
+    {
+        if (regularPrice < 0m)
+        {
+            throw new AppException("Retail price cannot be negative.").SetStatusCode(400);
+        }
+
+        if (discountPercentage > 100)
+        {
+            throw new AppException("Discount percentage must be between 0 and 100.").SetStatusCode(400);
+        }
+
+        if (discountedPrice < 0m)
+        {
+            throw new AppException("Discounted price cannot be negative.").SetStatusCode(400);
+        }
+
+        if (discountedPrice > 0m && regularPrice <= 0m)
+        {
+            throw new AppException("A positive retail price is required when a discounted price is set.").SetStatusCode(400);
+        }
+
+        if (discountedPrice > regularPrice && regularPrice > 0m)
+        {
+            throw new AppException("Discounted price cannot exceed the retail price.").SetStatusCode(400);
+        }
+
+        if (wholesalePrice < 0m)
+        {
+            throw new AppException("Wholesale price cannot be negative.").SetStatusCode(400);
+        }
+
+        bool wholesalePriceConfigured = wholesalePrice > 0m;
+        bool wholesaleQuantityConfigured = wholesaleMinQuantity > 0;
+
+        if (wholesalePriceConfigured != wholesaleQuantityConfigured)
+        {
+            throw new AppException("Wholesale price and minimum quantity must either both be configured or both be zero.").SetStatusCode(400);
+        }
+
+        try
+        {
+            ProductPricingCalculator.ValidateVatRate(vatRate);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new AppException("VAT rate must be between 0 and 100 percent.").SetStatusCode(400);
+        }
+    }
+
+    private static void ApplyRetailPricing(
+        Product product,
+        decimal regularPrice,
+        byte discountPercentage,
+        decimal discountedPrice)
+    {
+        product.RegularPrice = ProductPricingCalculator.RoundMoney(regularPrice);
+
+        if (discountedPrice > 0m)
+        {
+            product.DiscountedPrice = ProductPricingCalculator.RoundMoney(discountedPrice);
+            product.DiscountPercentage = product.RegularPrice == 0m
+                ? (byte)0
+                : (byte)Math.Clamp(
+                    (int)Math.Round(
+                        (1m - product.DiscountedPrice / product.RegularPrice) * 100m,
+                        0,
+                        MidpointRounding.AwayFromZero),
+                    0,
+                    100);
+
+            return;
+        }
+
+        product.DiscountPercentage = discountPercentage;
+        product.DiscountedPrice = discountPercentage == 0
+            ? 0m
+            : ProductPricingCalculator.RoundMoney(
+                product.RegularPrice * (1m - discountPercentage / 100m));
+    }
+
+    private static ProductResponse ToProductResponse(Product product)
+    {
+        decimal retailExclVat = ProductPricingCalculator.GrossToNet(product.RegularPrice, product.VatRate);
+        decimal discountedExclVat = ProductPricingCalculator.GrossToNet(product.DiscountedPrice, product.VatRate);
+        decimal wholesaleExclVat = ProductPricingCalculator.GrossToNet(product.WholesalePrice, product.VatRate);
+        bool wholesaleEnabled = product.WholesalePrice > 0m && product.WholesaleMinQuantity > 0;
+
+        return new ProductResponse
+        {
+            Id = product.Id,
+            Title = product.Title,
+            Description = product.Description,
+            MainImageUrl = product.MainImageUrl,
+            RegularPrice = product.RegularPrice,
+            DiscountPercentage = product.DiscountPercentage,
+            DiscountedPrice = product.DiscountedPrice,
+            RetailPriceInclVat = product.RegularPrice,
+            RetailPriceExclVat = retailExclVat,
+            DiscountedPriceInclVat = product.DiscountedPrice,
+            DiscountedPriceExclVat = discountedExclVat,
+            WholesalePriceInclVat = product.WholesalePrice,
+            WholesalePriceExclVat = wholesaleExclVat,
+            WholesaleMinQuantity = product.WholesaleMinQuantity,
+            VatRate = product.VatRate,
+            WholesaleEnabled = wholesaleEnabled,
+            Rating = product.Rating,
+            Quantity = product.Quantity,
+            CategoryId = product.CategoryId,
+            CategoryName = product.Category?.Name ?? string.Empty,
+            SecondaryImages = product.SecondaryImages
+                .Select(img => new ImageResponse
+                {
+                    Id = img.Id,
+                    Uri = img.Uri
+                })
+                .ToList(),
+        };
+    }
+
+    private static ProductsResponse ToProductsResponse(Product product)
+    {
+        decimal retailExclVat = ProductPricingCalculator.GrossToNet(product.RegularPrice, product.VatRate);
+        decimal discountedExclVat = ProductPricingCalculator.GrossToNet(product.DiscountedPrice, product.VatRate);
+        decimal wholesaleExclVat = ProductPricingCalculator.GrossToNet(product.WholesalePrice, product.VatRate);
+        bool wholesaleEnabled = product.WholesalePrice > 0m && product.WholesaleMinQuantity > 0;
+
+        return new ProductsResponse
+        {
+            Id = product.Id,
+            Title = product.Title,
+            Description = product.Description,
+            MainImageUrl = product.MainImageUrl,
+            RegularPrice = product.RegularPrice,
+            DiscountPercentage = product.DiscountPercentage,
+            DiscountedPrice = product.DiscountedPrice,
+            RetailPriceInclVat = product.RegularPrice,
+            RetailPriceExclVat = retailExclVat,
+            DiscountedPriceInclVat = product.DiscountedPrice,
+            DiscountedPriceExclVat = discountedExclVat,
+            WholesalePriceInclVat = product.WholesalePrice,
+            WholesalePriceExclVat = wholesaleExclVat,
+            WholesaleMinQuantity = product.WholesaleMinQuantity,
+            VatRate = product.VatRate,
+            WholesaleEnabled = wholesaleEnabled,
+            Quantity = product.Quantity,
+            Rating = product.Rating,
+            CategoryId = product.CategoryId,
+            CategoryName = product.Category?.Name ?? string.Empty,
+            SecondaryImages = product.SecondaryImages
+                .Select(si => new ImageResponse
+                {
+                    Id = si.Id,
+                    Uri = si.Uri
+                })
+                .ToList()
+        };
+    }
 }
