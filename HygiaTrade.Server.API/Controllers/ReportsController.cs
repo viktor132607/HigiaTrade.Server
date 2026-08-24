@@ -11,7 +11,7 @@ namespace HygiaTrade.API.Controllers;
 [ApiController]
 [Authorize(Roles = Roles.Admin)]
 [Route("api/[controller]")]
-public class ReportsController(ApplicationDbContext db) : ControllerBase
+public class ReportsController(ApplicationDbContext db, ILogger<ReportsController> logger) : ControllerBase
 {
     public sealed record InventoryRow(
         Guid ProductId,
@@ -44,130 +44,185 @@ public class ReportsController(ApplicationDbContext db) : ControllerBase
         [FromQuery] DateOnly? to = null,
         [FromQuery] int lowStockThreshold = 10)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var fromDateOnly = from ?? today.AddDays(-30);
-        var toDateOnly = to ?? today;
-
-        if (fromDateOnly > toDateOnly)
+        try
         {
-            return BadRequest(new { message = "Началната дата не може да е след крайната дата." });
-        }
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var fromDateOnly = from ?? today.AddDays(-30);
+            var toDateOnly = to ?? today;
 
-        lowStockThreshold = Math.Clamp(lowStockThreshold, 0, 1_000_000);
-
-        var fromUtc = DateTime.SpecifyKind(fromDateOnly.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-        var toUtc = DateTime.SpecifyKind(toDateOnly.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
-
-        var products = await db.Products
-            .AsNoTracking()
-            .Where(product => !product.IsDeleted)
-            .Select(product => new
+            if (fromDateOnly > toDateOnly)
             {
-                product.Id,
-                product.Title,
-                product.Quantity,
-                CategoryName = product.Category != null ? product.Category.Name : "Без категория"
-            })
-            .OrderBy(product => product.Title)
-            .ToListAsync();
+                return BadRequest(new { message = "Началната дата не може да е след крайната дата." });
+            }
 
-        var validOrders = db.Orders
-            .AsNoTracking()
-            .Where(order =>
-                !order.IsDeleted &&
-                order.Status != OrderStatus.Cancelled &&
-                order.CreatedOn >= fromUtc &&
-                order.CreatedOn <= toUtc);
+            lowStockThreshold = Math.Clamp(lowStockThreshold, 0, 1_000_000);
 
-        var totalOrders = await validOrders.CountAsync();
-        var revenue = await validOrders
-            .Select(order => (decimal?)order.OrderTotalPrice)
-            .SumAsync() ?? 0m;
+            var fromUtc = DateTime.SpecifyKind(
+                fromDateOnly.ToDateTime(TimeOnly.MinValue),
+                DateTimeKind.Utc);
+            var toExclusiveUtc = DateTime.SpecifyKind(
+                toDateOnly.AddDays(1).ToDateTime(TimeOnly.MinValue),
+                DateTimeKind.Utc);
 
-        var sales = await db.OrderItems
-            .AsNoTracking()
-            .Where(item =>
-                !item.IsDeleted &&
-                !item.Order.IsDeleted &&
-                item.Order.Status != OrderStatus.Cancelled &&
-                item.Order.CreatedOn >= fromUtc &&
-                item.Order.CreatedOn <= toUtc)
-            .GroupBy(item => new { item.ProductId, item.Title })
-            .Select(group => new SalesRow(
-                group.Key.ProductId,
-                group.Key.Title,
-                group.Sum(item => item.Quantity),
-                group.Sum(item => item.TotalPrice),
-                group.Select(item => item.OrderId).Distinct().Count()))
-            .OrderByDescending(row => row.SoldQuantity)
-            .ThenBy(row => row.ProductName)
-            .ToListAsync();
-
-        var stockEntries = await ReadStockEntriesAsync(fromUtc, toUtc);
-
-        var receivedByProduct = stockEntries
-            .GroupBy(entry => entry.ProductId)
-            .ToDictionary(group => group.Key, group => group.Sum(entry => entry.Quantity));
-        var soldByProduct = sales
-            .GroupBy(row => row.ProductId)
-            .ToDictionary(group => group.Key, group => group.Sum(row => row.SoldQuantity));
-
-        var inventory = products
-            .Select(product =>
-            {
-                receivedByProduct.TryGetValue(product.Id, out var received);
-                soldByProduct.TryGetValue(product.Id, out var sold);
-
-                return new InventoryRow(
+            var products = await db.Products
+                .AsNoTracking()
+                .Where(product => !product.IsDeleted)
+                .Select(product => new
+                {
                     product.Id,
                     product.Title,
-                    product.CategoryName,
                     product.Quantity,
-                    received,
-                    sold,
-                    received - sold);
-            })
-            .OrderBy(row => row.CurrentQuantity)
-            .ThenBy(row => row.ProductName)
-            .ToList();
+                    CategoryName = product.Category != null
+                        ? product.Category.Name
+                        : "Без категория"
+                })
+                .OrderBy(product => product.Title)
+                .ToListAsync();
 
-        var totalUnitsInStock = products.Aggregate(0UL, (sum, product) => sum + product.Quantity);
-        var receivedUnits = stockEntries.Sum(entry => entry.Quantity);
-        var soldUnits = sales.Sum(row => row.SoldQuantity);
-        var outOfStockProducts = products.Count(product => product.Quantity == 0);
-        var lowStockProducts = products.Count(product =>
-            product.Quantity > 0 && product.Quantity <= (uint)lowStockThreshold);
+            var orders = await db.Orders
+                .AsNoTracking()
+                .Where(order =>
+                    !order.IsDeleted &&
+                    order.Status != OrderStatus.Cancelled &&
+                    order.CreatedOn >= fromUtc &&
+                    order.CreatedOn < toExclusiveUtc)
+                .Select(order => new
+                {
+                    order.Id,
+                    order.OrderTotalPrice
+                })
+                .ToListAsync();
 
-        var categories = products
-            .Select(product => product.CategoryName)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name)
-            .ToList();
+            var validOrderIds = orders.Select(order => order.Id).ToHashSet();
 
-        return Ok(new
-        {
-            from = fromDateOnly,
-            to = toDateOnly,
-            lowStockThreshold,
-            summary = new
+            var orderItems = validOrderIds.Count == 0
+                ? []
+                : await db.OrderItems
+                    .AsNoTracking()
+                    .Where(item =>
+                        !item.IsDeleted &&
+                        validOrderIds.Contains(item.OrderId))
+                    .Select(item => new
+                    {
+                        item.ProductId,
+                        item.Title,
+                        item.Quantity,
+                        item.TotalPrice,
+                        item.OrderId
+                    })
+                    .ToListAsync();
+
+            var sales = orderItems
+                .GroupBy(item => new { item.ProductId, item.Title })
+                .Select(group => new SalesRow(
+                    group.Key.ProductId,
+                    group.Key.Title,
+                    group.Sum(item => item.Quantity),
+                    group.Sum(item => item.TotalPrice),
+                    group.Select(item => item.OrderId).Distinct().Count()))
+                .OrderByDescending(row => row.SoldQuantity)
+                .ThenBy(row => row.ProductName)
+                .ToList();
+
+            var stockEntries = await ReadStockEntriesSafeAsync(fromUtc, toExclusiveUtc);
+
+            var receivedByProduct = stockEntries
+                .GroupBy(entry => entry.ProductId)
+                .ToDictionary(group => group.Key, group => group.Sum(entry => entry.Quantity));
+
+            var soldByProduct = sales
+                .GroupBy(row => row.ProductId)
+                .ToDictionary(group => group.Key, group => group.Sum(row => row.SoldQuantity));
+
+            var inventory = products
+                .Select(product =>
+                {
+                    receivedByProduct.TryGetValue(product.Id, out var received);
+                    soldByProduct.TryGetValue(product.Id, out var sold);
+
+                    return new InventoryRow(
+                        product.Id,
+                        product.Title,
+                        product.CategoryName,
+                        product.Quantity,
+                        received,
+                        sold,
+                        received - sold);
+                })
+                .OrderBy(row => row.CurrentQuantity)
+                .ThenBy(row => row.ProductName)
+                .ToList();
+
+            var totalUnitsInStock = products.Aggregate(
+                0UL,
+                (sum, product) => sum + product.Quantity);
+
+            var receivedUnits = stockEntries.Sum(entry => entry.Quantity);
+            var soldUnits = sales.Sum(row => row.SoldQuantity);
+            var totalOrders = orders.Count;
+            var revenue = orders.Sum(order => order.OrderTotalPrice);
+            var outOfStockProducts = products.Count(product => product.Quantity == 0);
+            var lowStockProducts = products.Count(product =>
+                product.Quantity > 0 && product.Quantity <= (uint)lowStockThreshold);
+
+            var categories = products
+                .Select(product => product.CategoryName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(name => name)
+                .ToList();
+
+            return Ok(new
             {
-                totalProducts = products.Count,
-                totalUnitsInStock,
-                lowStockProducts,
-                outOfStockProducts,
-                receivedUnits,
-                soldUnits,
-                totalOrders,
-                revenue
-            },
-            categories,
-            inventory,
-            sales,
-            stockEntries
-        });
+                from = fromDateOnly,
+                to = toDateOnly,
+                lowStockThreshold,
+                summary = new
+                {
+                    totalProducts = products.Count,
+                    totalUnitsInStock,
+                    lowStockProducts,
+                    outOfStockProducts,
+                    receivedUnits,
+                    soldUnits,
+                    totalOrders,
+                    revenue
+                },
+                categories,
+                inventory,
+                sales,
+                stockEntries
+            });
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Failed to generate admin report.");
+            return StatusCode(500, new
+            {
+                message = "Справката не можа да бъде заредена. Провери логовете на сървъра."
+            });
+        }
     }
 
-    private async Task<List<StockEntryRow>> ReadStockEntriesAsync(DateTime fromUtc, DateTime toUtc)
+    private async Task<List<StockEntryRow>> ReadStockEntriesSafeAsync(
+        DateTime fromUtc,
+        DateTime toExclusiveUtc)
+    {
+        try
+        {
+            return await ReadStockEntriesAsync(fromUtc, toExclusiveUtc);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "StockEntries could not be read. The rest of the report will still be returned.");
+            return [];
+        }
+    }
+
+    private async Task<List<StockEntryRow>> ReadStockEntriesAsync(
+        DateTime fromUtc,
+        DateTime toExclusiveUtc)
     {
         var result = new List<StockEntryRow>();
         var connection = db.Database.GetDbConnection();
@@ -195,7 +250,7 @@ public class ReportsController(ApplicationDbContext db) : ControllerBase
                 LEFT JOIN "Categories" c ON c."Id" = p."CategoryId"
                 WHERE p."IsDeleted" = FALSE
                   AND s."CreatedOn" >= @fromUtc
-                  AND s."CreatedOn" <= @toUtc
+                  AND s."CreatedOn" < @toExclusiveUtc
                 ORDER BY s."CreatedOn" DESC
                 """;
 
@@ -205,8 +260,8 @@ public class ReportsController(ApplicationDbContext db) : ControllerBase
             command.Parameters.Add(fromParameter);
 
             var toParameter = command.CreateParameter();
-            toParameter.ParameterName = "@toUtc";
-            toParameter.Value = toUtc;
+            toParameter.ParameterName = "@toExclusiveUtc";
+            toParameter.Value = toExclusiveUtc;
             command.Parameters.Add(toParameter);
 
             await using var reader = await command.ExecuteReaderAsync();
