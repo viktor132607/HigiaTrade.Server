@@ -24,4 +24,7 @@ COPY --from=build /app/publish .
 ENV ASPNETCORE_URLS=http://0.0.0.0:10000
 EXPOSE 10000
 
-ENTRYPOINT ["dotnet", "HygiaTrade.Server.API.dll"]
+# Production config comes from Render environment variables. Disable appsettings
+# hot-reload so ASP.NET Core does not create inotify FileSystemWatcher instances
+# inside Render's container and hit the platform watcher limit during startup.
+ENTRYPOINT ["dotnet", "HygiaTrade.Server.API.dll", "hostBuilder:reloadConfigOnChange=false"]
