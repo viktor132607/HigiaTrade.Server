@@ -11,6 +11,7 @@ public class UpdateProductRequest
     public required string Description { get; set; }
 
     public required string MainImageUrl { get; set; }
+    public bool IsActive { get; set; } = true;
 
     // Retail prices are VAT-inclusive to stay compatible with the current storefront.
     public decimal RegularPrice { get; set; }
