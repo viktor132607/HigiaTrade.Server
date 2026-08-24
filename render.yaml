@@ -49,7 +49,7 @@ services:
       - key: Email__SenderName
         value: HygiaTrade
       - key: Email__ContactRecipientEmail
-        value: iliev132607@gmail.com
+        value: higiatrade@abv.bg
       - key: Email__PasswordResetTokenExpiryMinutes
         value: "30"
       - key: Payments__OnlineProviderName
