@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using HygiaTrade.Data.Seed;
 
@@ -14,44 +12,10 @@ namespace HygiaTrade.Data
 
             ApplicationDbContext db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-            await RecoverCatalogueIfNeededAsync(db);
-
+            // Production bootstrap only: keep required admin accounts available.
+            // Catalogue, customers, orders, reviews, stock and discounts are real database data
+            // and must never be recreated or resurrected by demo seeders on application startup.
             await UserSeeder.SeedAsync(db);
-            await CategorySeeder.SeedAsync(db);
-            await ProductSeeder.SeedAsync(db);
-
-            // Legacy seeders reference products that are no longer part of the current catalogue.
-            // Keep them disabled until their seed data is aligned with ProductSeeder.
-            // await ReviewSeeder.SeedAsync(db);
-            // await OrderSeeder.SeedAsync(db);
-            // await WishlistSeeder.SeedAsync(db);
-        }
-
-        private static async Task RecoverCatalogueIfNeededAsync(ApplicationDbContext db)
-        {
-            bool hasAnyCategories = await db.Categories.AnyAsync();
-            bool hasActiveCategories = await db.Categories.AnyAsync(category => !category.IsDeleted);
-
-            if (hasAnyCategories && !hasActiveCategories)
-            {
-                await db.Categories
-                    .Where(category => category.IsDeleted)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(category => category.IsDeleted, false)
-                        .SetProperty(category => category.ModifiedOn, DateTime.UtcNow));
-            }
-
-            bool hasAnyProducts = await db.Products.AnyAsync();
-            bool hasActiveProducts = await db.Products.AnyAsync(product => !product.IsDeleted);
-
-            if (hasAnyProducts && !hasActiveProducts)
-            {
-                await db.Products
-                    .Where(product => product.IsDeleted)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(product => product.IsDeleted, false)
-                        .SetProperty(product => product.ModifiedOn, DateTime.UtcNow));
-            }
         }
     }
 }
