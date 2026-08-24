@@ -6,11 +6,9 @@ namespace HygiaTrade.Common.Responses.Product;
 public class ProductResponse
 {
     public Guid Id { get; set; }
-
     public required string Title { get; set; }
-
+    public string? Brand { get; set; }
     public required string Description { get; set; }
-    
     public required string MainImageUrl { get; set; }
     public bool IsActive { get; set; }
 
@@ -30,14 +28,9 @@ public class ProductResponse
     public bool WholesaleEnabled { get; set; }
 
     public string CurrencyCode { get; set; } = CurrencyDefaults.Code;
-    
-    public double Rating { get; set; } 
-
+    public double Rating { get; set; }
     public uint Quantity { get; set; }
-
     public Guid CategoryId { get; set; }
-    
     public required string CategoryName { get; set; }
-    
     public ICollection<ImageResponse> SecondaryImages { get; set; } = new List<ImageResponse>();
 }
