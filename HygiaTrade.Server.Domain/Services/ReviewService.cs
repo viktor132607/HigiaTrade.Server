@@ -21,21 +21,20 @@ public class ReviewService(IReviewRepository reviewRepository, IProductRepositor
 
         existingReview.Content = request.Content;
         existingReview.Rating = request.Rating;
-        
+
         Review updatedReview = await reviewRepository.UpdateAsync(existingReview);
 
         await RecalculateProductRatingAsync(updatedReview!.ProductId);
-        
+
         return new()
         {
             Id = updatedReview.Id,
             Content = updatedReview.Content,
             Rating = updatedReview.Rating,
-            CreatedOn = updatedReview.CreatedOn,  
+            CreatedOn = updatedReview.CreatedOn,
             UserId = updatedReview.UserId,
             UserNames = (await userRepository.GetByIdAsync(updatedReview.UserId)).Names
-         
-        };    
+        };
     }
 
     public async Task<ReviewResponse?> CreateAsync(CreateReviewRequest request)
@@ -47,9 +46,9 @@ public class ReviewService(IReviewRepository reviewRepository, IProductRepositor
             Content = request.Content,
             Rating = request.Rating,
         };
-        
+
         await reviewRepository.AddAsync(newReview);
-        
+
         await RecalculateProductRatingAsync(newReview.ProductId);
 
         return new()
@@ -68,22 +67,30 @@ public class ReviewService(IReviewRepository reviewRepository, IProductRepositor
         Review? review = await reviewRepository.GetByIdAsync(id);
         if (review == null)
         {
-            throw new AppException("Product not found.").SetStatusCode(404);
+            throw new AppException("Review not found.").SetStatusCode(404);
         }
 
         if (review.UserId != Guid.Parse(await authService.GetCurrentUserId()))
         {
             throw new AppException("Can't delete a review that is not yours.").SetStatusCode(403);
         }
-        
-        return await reviewRepository.DeleteAsync(id);    
+
+        Guid productId = review.ProductId;
+        bool deleted = await reviewRepository.DeleteAsync(id);
+
+        if (deleted)
+        {
+            await RecalculateProductRatingAsync(productId);
+        }
+
+        return deleted;
     }
 
     public async Task<Paginated<ReviewResponse>> SearchReviewsAsync(SearchReviewsRequest request)
     {
         Filter<Review> filter = new()
         {
-            Includes = 
+            Includes =
             [
                 x => x.Product!
             ],
@@ -119,21 +126,18 @@ public class ReviewService(IReviewRepository reviewRepository, IProductRepositor
             TotalCount = result.TotalCount
         };
 
-        return paginated;    
+        return paginated;
     }
 
     private async Task RecalculateProductRatingAsync(Guid productId)
     {
         IEnumerable<Review> reviews = await reviewRepository.GetReviews(productId);
+        Review[] reviewArray = reviews.ToArray();
 
-        double rating = 0;
+        double rating = reviewArray.Length == 0
+            ? 0
+            : Math.Round(reviewArray.Average(x => (double)x.Rating), 2, MidpointRounding.AwayFromZero);
 
-        if (reviews.Any())
-        {
-            rating = reviews.Sum(x => x.Rating) / reviews.Count();
-            rating = Math.Round(rating * 2, MidpointRounding.AwayFromZero) / 2.0;
-        }
-        
         await productRepository.UpdateRatingAsync(productId, rating);
     }
 }
