@@ -96,8 +96,9 @@ public class ProductService(
             Description = request.Description,
             MainImageUrl = request.MainImageUrl,
             IsActive = request.IsActive,
-            Rating = 3,
-            Quantity = request.Quantity,
+            // Ratings come only from real reviews; inventory comes only from stock receipts.
+            Rating = 0,
+            Quantity = 0,
             CategoryId = request.CategoryId,
             WholesalePrice = ProductPricingCalculator.RoundMoney(request.WholesalePrice),
             WholesaleMinQuantity = request.WholesaleMinQuantity,
@@ -164,7 +165,7 @@ public class ProductService(
         existingProduct.Description = request.Description;
         existingProduct.MainImageUrl = request.MainImageUrl;
         existingProduct.IsActive = request.IsActive;
-        existingProduct.Quantity = request.Quantity;
+        // Quantity is deliberately not editable here. InventoryController owns stock changes.
         existingProduct.CategoryId = request.CategoryId;
         existingProduct.WholesalePrice = ProductPricingCalculator.RoundMoney(wholesalePrice);
         existingProduct.WholesaleMinQuantity = wholesaleMinQuantity;
