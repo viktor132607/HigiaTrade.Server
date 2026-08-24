@@ -94,6 +94,7 @@ public class ProductService(
             Title = request.Title,
             Description = request.Description,
             MainImageUrl = request.MainImageUrl,
+            IsActive = request.IsActive,
             Rating = 3,
             Quantity = request.Quantity,
             CategoryId = request.CategoryId,
@@ -160,6 +161,7 @@ public class ProductService(
         existingProduct.Title = request.Title;
         existingProduct.Description = request.Description;
         existingProduct.MainImageUrl = request.MainImageUrl;
+        existingProduct.IsActive = request.IsActive;
         existingProduct.Quantity = request.Quantity;
         existingProduct.CategoryId = request.CategoryId;
         existingProduct.WholesalePrice = ProductPricingCalculator.RoundMoney(wholesalePrice);
@@ -340,6 +342,7 @@ public class ProductService(
             Title = product.Title,
             Description = product.Description,
             MainImageUrl = product.MainImageUrl,
+            IsActive = product.IsActive,
             RegularPrice = product.RegularPrice,
             DiscountPercentage = product.DiscountPercentage,
             DiscountedPrice = product.DiscountedPrice,
@@ -379,6 +382,7 @@ public class ProductService(
             Title = product.Title,
             Description = product.Description,
             MainImageUrl = product.MainImageUrl,
+            IsActive = product.IsActive,
             RegularPrice = product.RegularPrice,
             DiscountPercentage = product.DiscountPercentage,
             DiscountedPrice = product.DiscountedPrice,
