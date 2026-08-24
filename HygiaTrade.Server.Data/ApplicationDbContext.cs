@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using HygiaTrade.Data.Entities;
 
 namespace HygiaTrade.Data
@@ -17,6 +18,12 @@ namespace HygiaTrade.Data
         public DbSet<Review> Reviews => Set<Review>();
         public DbSet<WishlistItem> WishlistItems => Set<WishlistItem>();
 
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.ConfigureWarnings(warnings =>
+                warnings.Ignore(RelationalEventId.PendingModelChangesWarning));
+        }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
@@ -24,7 +31,7 @@ namespace HygiaTrade.Data
             builder.Entity<Product>()
                 .Property(p => p.RegularPrice)
                 .HasPrecision(18, 2);
-            
+
             builder.Entity<Product>()
                 .Property(p => p.DiscountedPrice)
                 .HasPrecision(18, 2);
@@ -36,6 +43,9 @@ namespace HygiaTrade.Data
             builder.Entity<Product>()
                 .Property(p => p.VatRate)
                 .HasPrecision(5, 2);
+
+            builder.Entity<Product>()
+                .HasIndex(p => p.Brand);
 
             builder.Entity<OrderItem>()
                 .Property(oi => oi.SinglePrice)
@@ -72,18 +82,18 @@ namespace HygiaTrade.Data
             builder.Entity<Order>()
                 .Property(o => o.OrderTotalPrice)
                 .HasPrecision(18, 2);
-            
+
             builder.Entity<Image>()
                 .HasOne(i => i.Product)
                 .WithMany(p => p.SecondaryImages)
                 .HasForeignKey(i => i.ProductId)
-                .OnDelete(DeleteBehavior.Cascade); 
-            
+                .OnDelete(DeleteBehavior.Cascade);
+
             builder.Entity<Product>()
                 .HasOne(i => i.Category)
                 .WithMany(p => p.Products)
                 .HasForeignKey(i => i.CategoryId)
-                .OnDelete(DeleteBehavior.Cascade); 
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }
