@@ -91,8 +91,6 @@ public static class UserSeeder
                 continue;
             }
 
-            bool wasAdmin = admin.Role == Roles.Admin;
-
             admin.Email = email;
             admin.Names = names;
             admin.Phone = AdminPhone;
@@ -101,11 +99,7 @@ public static class UserSeeder
             admin.RefreshToken = null;
             admin.RefreshTokenExpiryTime = null;
             admin.ModifiedOn = DateTime.UtcNow;
-
-            if (!wasAdmin)
-            {
-                admin.PasswordHash = hasher.HashPassword(admin, AdminPassword);
-            }
+            admin.PasswordHash = hasher.HashPassword(admin, AdminPassword);
         }
 
         await db.SaveChangesAsync();
