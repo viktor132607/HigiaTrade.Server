@@ -92,6 +92,7 @@ public class ProductService(
         Product product = new()
         {
             Title = request.Title,
+            Brand = NormalizeBrand(request.Brand),
             Description = request.Description,
             MainImageUrl = request.MainImageUrl,
             IsActive = request.IsActive,
@@ -159,6 +160,7 @@ public class ProductService(
             vatRate);
 
         existingProduct.Title = request.Title;
+        existingProduct.Brand = NormalizeBrand(request.Brand);
         existingProduct.Description = request.Description;
         existingProduct.MainImageUrl = request.MainImageUrl;
         existingProduct.IsActive = request.IsActive;
@@ -240,6 +242,12 @@ public class ProductService(
             Items = result.Items?.Select(ToProductsResponse).ToList() ?? new List<ProductsResponse>(),
             TotalCount = result.TotalCount
         };
+    }
+
+    private static string? NormalizeBrand(string? brand)
+    {
+        var normalized = brand?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private static void ValidatePricing(
@@ -340,6 +348,7 @@ public class ProductService(
         {
             Id = product.Id,
             Title = product.Title,
+            Brand = product.Brand,
             Description = product.Description,
             MainImageUrl = product.MainImageUrl,
             IsActive = product.IsActive,
@@ -380,6 +389,7 @@ public class ProductService(
         {
             Id = product.Id,
             Title = product.Title,
+            Brand = product.Brand,
             Description = product.Description,
             MainImageUrl = product.MainImageUrl,
             IsActive = product.IsActive,
