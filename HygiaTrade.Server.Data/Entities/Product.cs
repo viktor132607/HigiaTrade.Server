@@ -3,7 +3,8 @@ namespace HygiaTrade.Data.Entities
     public class Product : GenericEntity
     {
         public string Title { get; set; }
-        public string Description { get; set; } 
+        public string? Brand { get; set; }
+        public string Description { get; set; }
         public string MainImageUrl { get; set; }
         public bool IsActive { get; set; } = true;
 
