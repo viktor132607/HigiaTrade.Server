@@ -11,6 +11,8 @@ public class SearchProductsRequest : PaginationModel
     public Guid? CategoryId { get; set; }
     public decimal? MinPrice { get; set; }
     public decimal? MaxPrice { get; set; }
+
+    // Kept as MinRating for API compatibility, but the value now represents a rating bucket from 1 to 5.
     public byte? MinRating { get; set; }
 
     // Set by the API controller for authenticated admins; public callers cannot force inactive products to appear.
@@ -52,7 +54,7 @@ public class SearchProductsRequest : PaginationModel
 
         if (MinRating.HasValue)
         {
-            result = ExpressionExtension<Data.Entities.Product>.AndAlso(result, FilterByMinRating());
+            result = ExpressionExtension<Data.Entities.Product>.AndAlso(result, FilterByRatingBucket());
         }
 
         return result;
@@ -84,8 +86,16 @@ public class SearchProductsRequest : PaginationModel
         return x => (x.DiscountedPrice > 0m ? x.DiscountedPrice : x.RegularPrice) <= MaxPrice!.Value;
     }
 
-    private Expression<Func<Data.Entities.Product, bool>> FilterByMinRating()
+    private Expression<Func<Data.Entities.Product, bool>> FilterByRatingBucket()
     {
-        return x => x.Rating >= MinRating!.Value;
+        return MinRating!.Value switch
+        {
+            1 => x => x.Rating >= 1.00 && x.Rating < 1.50,
+            2 => x => x.Rating >= 1.50 && x.Rating < 2.50,
+            3 => x => x.Rating >= 2.50 && x.Rating < 3.50,
+            4 => x => x.Rating >= 3.50 && x.Rating < 4.50,
+            5 => x => x.Rating >= 4.50 && x.Rating <= 5.00,
+            _ => x => false,
+        };
     }
 }
