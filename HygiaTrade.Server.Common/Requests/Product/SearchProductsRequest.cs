@@ -5,8 +5,9 @@ using HygiaTrade.Data.PaginationAndFiltering;
 namespace HygiaTrade.Common.Requests.Product;
 
 public class SearchProductsRequest : PaginationModel
-{ 
+{
     public string? Title { get; set; }
+    public string? Brand { get; set; }
     public Guid? CategoryId { get; set; }
     public decimal? MinPrice { get; set; }
     public decimal? MaxPrice { get; set; }
@@ -27,6 +28,11 @@ public class SearchProductsRequest : PaginationModel
         if (!string.IsNullOrWhiteSpace(Title))
         {
             result = ExpressionExtension<Data.Entities.Product>.AndAlso(result, FilterByTitle());
+        }
+
+        if (!string.IsNullOrWhiteSpace(Brand))
+        {
+            result = ExpressionExtension<Data.Entities.Product>.AndAlso(result, FilterByBrand());
         }
 
         if (CategoryId.HasValue)
@@ -55,6 +61,12 @@ public class SearchProductsRequest : PaginationModel
     private Expression<Func<Data.Entities.Product, bool>> FilterByTitle()
     {
         return x => EF.Functions.Like(x.Title.ToLower(), $"%{Title!.ToLower()}%");
+    }
+
+    private Expression<Func<Data.Entities.Product, bool>> FilterByBrand()
+    {
+        var normalizedBrand = Brand!.Trim().ToLower();
+        return x => x.Brand != null && x.Brand.ToLower() == normalizedBrand;
     }
 
     private Expression<Func<Data.Entities.Product, bool>> FilterByCategory()
