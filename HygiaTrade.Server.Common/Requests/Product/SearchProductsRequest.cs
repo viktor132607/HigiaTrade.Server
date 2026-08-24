@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using HygiaTrade.Data.PaginationAndFiltering;
@@ -8,18 +7,22 @@ namespace HygiaTrade.Common.Requests.Product;
 public class SearchProductsRequest : PaginationModel
 { 
     public string? Title { get; set; }
-    
     public Guid? CategoryId { get; set; }
-
     public decimal? MinPrice { get; set; }
-    
     public decimal? MaxPrice { get; set; }
-    
     public byte? MinRating { get; set; }
+
+    // Set by the API controller for authenticated admins; public callers cannot force inactive products to appear.
+    public bool IncludeInactive { get; set; }
 
     public Expression<Func<Data.Entities.Product, bool>> GetPredicate()
     {
         Expression<Func<Data.Entities.Product, bool>> result = s => !s.IsDeleted;
+
+        if (!IncludeInactive)
+        {
+            result = ExpressionExtension<Data.Entities.Product>.AndAlso(result, x => x.IsActive);
+        }
 
         if (!string.IsNullOrWhiteSpace(Title))
         {
