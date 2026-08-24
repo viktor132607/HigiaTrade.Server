@@ -93,24 +93,22 @@ public class ReportsController(ApplicationDbContext db, ILogger<ReportsControlle
                 })
                 .ToListAsync();
 
-            var validOrderIds = orders.Select(order => order.Id).ToHashSet();
+            var validOrderIds = orders.Select(order => order.Id).ToArray();
 
-            var orderItems = validOrderIds.Count == 0
-                ? []
-                : await db.OrderItems
-                    .AsNoTracking()
-                    .Where(item =>
-                        !item.IsDeleted &&
-                        validOrderIds.Contains(item.OrderId))
-                    .Select(item => new
-                    {
-                        item.ProductId,
-                        item.Title,
-                        item.Quantity,
-                        item.TotalPrice,
-                        item.OrderId
-                    })
-                    .ToListAsync();
+            var orderItems = await db.OrderItems
+                .AsNoTracking()
+                .Where(item =>
+                    !item.IsDeleted &&
+                    validOrderIds.Contains(item.OrderId))
+                .Select(item => new
+                {
+                    item.ProductId,
+                    item.Title,
+                    item.Quantity,
+                    item.TotalPrice,
+                    item.OrderId
+                })
+                .ToListAsync();
 
             var sales = orderItems
                 .GroupBy(item => new { item.ProductId, item.Title })
