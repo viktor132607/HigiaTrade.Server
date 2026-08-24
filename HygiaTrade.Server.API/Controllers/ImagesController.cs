@@ -11,7 +11,7 @@ namespace HygiaTrade.API.Controllers;
 [Route("api/[controller]")]
 public class ImagesController(ApplicationDbContext db) : ControllerBase
 {
-    private const long MaxImageSize = 5 * 1024 * 1024;
+    private const long MaxImageSize = 10 * 1024 * 1024;
 
     private static readonly HashSet<string> AllowedContentTypes =
     [
@@ -33,7 +33,7 @@ public class ImagesController(ApplicationDbContext db) : ControllerBase
 
         if (file.Length > MaxImageSize)
         {
-            return BadRequest(new { message = "Image size cannot exceed 5 MB." });
+            return BadRequest(new { message = "Image size cannot exceed 10 MB." });
         }
 
         string contentType = file.ContentType.ToLowerInvariant();
