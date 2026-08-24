@@ -14,8 +14,11 @@ public class ProductsController(IProductService productService) : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAllAsync([FromQuery] SearchProductsRequest? request)
     {
+        SearchProductsRequest searchRequest = request ?? new SearchProductsRequest();
+        searchRequest.IncludeInactive = User.IsInRole(Roles.Admin);
+
         return await ControllerProcessor.ProcessAsync(
-            () => productService.SearchProductsAsync(request ?? new SearchProductsRequest()),
+            () => productService.SearchProductsAsync(searchRequest),
             this,
             true);
     }
