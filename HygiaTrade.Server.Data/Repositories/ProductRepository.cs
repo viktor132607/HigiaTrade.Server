@@ -108,7 +108,9 @@ public class ProductRepository(ApplicationDbContext context) : Repository<Produc
     }
     public async Task<IEnumerable<Product>> GetBestSellersAsync(int numOfBestSellers)
     {
-        IQueryable<Product> query = _context.Set<Product>().AsQueryable();
+        IQueryable<Product> query = _context.Set<Product>()
+            .Where(product => product.IsActive)
+            .AsQueryable();
         PropertyInfo? isDeletedProperty = typeof(Product).GetProperty("IsDeleted");
 
         if (isDeletedProperty != null && isDeletedProperty.PropertyType == typeof(bool))
