@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using HygiaTrade.Data.Entities;
 using HygiaTrade.Data.Seed;
 
 namespace HygiaTrade.Data
@@ -52,16 +51,6 @@ namespace HygiaTrade.Data
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(product => product.IsDeleted, false)
                         .SetProperty(product => product.ModifiedOn, DateTime.UtcNow));
-            }
-
-            User? seedAdmin = await db.Users
-                .FirstOrDefaultAsync(user => user.Email == "admin@hygiatrade.bg");
-
-            if (seedAdmin is not null && seedAdmin.IsDeleted)
-            {
-                seedAdmin.IsDeleted = false;
-                seedAdmin.ModifiedOn = DateTime.UtcNow;
-                await db.SaveChangesAsync();
             }
         }
     }
