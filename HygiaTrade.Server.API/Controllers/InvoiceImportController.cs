@@ -304,8 +304,6 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
 
     private async Task<string> OcrImageAsync(string inputPath, CancellationToken cancellationToken)
     {
-        // PSM 6 is much faster for invoice/table-like documents than automatic sparse-layout analysis.
-        // Render has limited CPU; OpenMP is also explicitly constrained in RunProcessAsync/Dockerfile.
         var result = await RunProcessAsync(
             "tesseract",
             [inputPath, "stdout", "-l", "bul+eng", "--oem", "1", "--psm", "6"],
@@ -409,7 +407,6 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
             var rawName = ExtractProductName(line, best?.Product.Title);
             if (rawName.Length < 3) continue;
 
-            // Unmatched rows are accepted only when they look like actual line items, not metadata/footers.
             if (best is null && !LooksLikeNumberedItem(line) && !QuantityUnitRegex().IsMatch(line)) continue;
 
             var candidates = scored
@@ -492,7 +489,7 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
         foreach (Match match in NumberRegex().Matches(working))
         {
             if (match.Value.Contains('%')) continue;
-            if (match.Value.Contains('.') || match.Value.Contains(',')) continue; // prices/decimal totals are not stock quantities
+            if (match.Value.Contains('.') || match.Value.Contains(',')) continue;
             if (productNumbers.Contains(NormalizeNumberToken(match.Value))) continue;
             if (!TryParseDecimal(match.Value, out var value) || value <= 0 || value > 100000) continue;
 
@@ -514,14 +511,12 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
         }
         else
         {
-            // Remove the common trailing quantity / unit-price / line-total columns.
             cleaned = Regex.Replace(cleaned, @"\s+\d+\s+(?:EUR|BGN|лв\.?|€).*$", string.Empty, RegexOptions.IgnoreCase);
             cleaned = Regex.Replace(cleaned, @"\s+\d+(?:[.,]\d{2})\s+(?:EUR|BGN|лв\.?|€).*$", string.Empty, RegexOptions.IgnoreCase);
         }
 
         cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim(' ', '-', '|', ':', '›', '>');
 
-        // If OCR name extraction is too damaged but catalog matching is strong, retain a useful name.
         if (cleaned.Length < 3 && !string.IsNullOrWhiteSpace(matchedTitle)) return matchedTitle;
         return cleaned.Length > 220 ? cleaned[..220] : cleaned;
     }
@@ -551,11 +546,19 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
 
     private static string? FindInvoiceNumber(string text)
     {
-        var match = InvoiceNumberRegex().Match(text);
-        if (!match.Success) return null;
+        foreach (var regex in new[] { InvoiceNumberRegex(), InvoiceNumberMarkerRegex(), InvoiceNumberLooseRegex() })
+        {
+            var match = regex.Match(text);
+            if (!match.Success) continue;
 
-        var value = match.Groups[1].Value.Trim().Trim(':', '-', '#');
-        return value.Length is >= 2 and <= 100 ? value : null;
+            var value = match.Groups[1].Value.Trim().Trim(':', '-', '#', '№');
+            if (value.Length is < 2 or > 100) continue;
+            if (!value.Any(char.IsDigit)) continue;
+            if (!value.Any(char.IsLetterOrDigit)) continue;
+            return value;
+        }
+
+        return null;
     }
 
     private static string? FindInvoiceDate(string text)
@@ -636,8 +639,14 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
     [GeneratedRegex(@"(?i)(?<!\p{L})(\d{1,6})\s*(?:бр\.?|броя|pcs?\.?|pieces?|qty\.?|x)(?!\p{L})", RegexOptions.CultureInvariant)]
     private static partial Regex QuantityUnitRegex();
 
-    [GeneratedRegex(@"(?im)(?:invoice|фактура)\s*(?:no\.?|number|№|#)\s*[:\-]?\s*([A-ZА-Я0-9][A-ZА-Я0-9\/\-.]{1,99})", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?im)(?:invoice|фактура)\s*(?:no\.?|number|номер|№|#)?\s*[:\-]?\s*(?:no\.?|number|номер|№|#)?\s*[:\-]?\s*([\p{L}\p{N}][\p{L}\p{N}_\/\-.]{1,99})", RegexOptions.CultureInvariant)]
     private static partial Regex InvoiceNumberRegex();
+
+    [GeneratedRegex(@"(?im)(?:^|\s)(?:№|#|no\.?|номер)\s*[:\-]?\s*([\p{L}\p{N}][\p{L}\p{N}_\/\-.]{1,99})", RegexOptions.CultureInvariant)]
+    private static partial Regex InvoiceNumberMarkerRegex();
+
+    [GeneratedRegex(@"(?im)\b([A-ZА-Я]{1,12}(?:[-_/][A-ZА-Я0-9]{1,20}){1,8})\b", RegexOptions.CultureInvariant)]
+    private static partial Regex InvoiceNumberLooseRegex();
 
     [GeneratedRegex(@"(?im)(?:date|дата)\s*[:\-]?\s*((?:0?[1-9]|[12]\d|3[01])[.\-/](?:0?[1-9]|1[0-2])[.\-/](?:20)?\d{2})", RegexOptions.CultureInvariant)]
     private static partial Regex LabeledDateRegex();
