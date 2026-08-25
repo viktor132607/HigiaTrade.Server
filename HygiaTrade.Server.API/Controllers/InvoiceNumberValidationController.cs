@@ -4,6 +4,7 @@ using HygiaTrade.Core.StaticClasses;
 using HygiaTrade.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HygiaTrade.API.Controllers;
 
