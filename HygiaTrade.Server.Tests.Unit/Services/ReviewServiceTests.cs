@@ -21,6 +21,7 @@ namespace HygiaTrade.Tests.Unit.Services
         private readonly Mock<IProductRepository> productRepositoryMock;
         private readonly Mock<IAuthService> authServiceMock;
         private readonly Mock<IUserRepository> userRepositoryMock;
+        private readonly Mock<IOrderRepository> orderRepositoryMock;
         private readonly ReviewService reviewService;
 
         public ReviewServiceTests()
@@ -29,11 +30,13 @@ namespace HygiaTrade.Tests.Unit.Services
             productRepositoryMock = new();
             authServiceMock = new();
             userRepositoryMock = new();
+            orderRepositoryMock = new();
             reviewService = new(
                 reviewRepositoryMock.Object,
                 productRepositoryMock.Object,
                 authServiceMock.Object,
-                userRepositoryMock.Object);
+                userRepositoryMock.Object,
+                orderRepositoryMock.Object);
         }
 
         [Fact]
