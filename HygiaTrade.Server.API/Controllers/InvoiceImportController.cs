@@ -24,11 +24,13 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
         ".pdf", ".png", ".jpg", ".jpeg", ".webp"
     };
 
-    private static readonly string[] IgnoreLineTerms =
+    private static readonly string[] RejectLineTerms =
     [
-        "invoice", "фактура", "subtotal", "междинна сума", "total", "общо", "vat", "ддс",
-        "tax", "данък", "payment", "плащане", "bank", "банка", "iban", "swift", "address",
-        "адрес", "customer", "клиент", "supplier", "доставчик", "description quantity", "описание количество"
+        "subtotal", "междинна сума", "total", "общо", "vat", "ддс", "tax", "данък",
+        "tax base", "данъчна основа", "net amount", "grand total", "amount due", "currency",
+        "payment", "плащане", "bank", "банка", "iban", "swift", "address", "адрес",
+        "customer", "клиент", "supplier", "доставчик", "получател", "основание",
+        "document", "created only", "not valid for accounting", "не е валидна за счетоводни цели"
     ];
 
     public sealed record ProductCandidate(Guid Id, string Name, double Confidence);
@@ -118,9 +120,9 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
                 .Where(product => product.Tokens.Length > 0)
                 .ToArray();
 
-            var items = ParseItems(extractedText, preparedCatalog);
             var invoiceNumber = FindInvoiceNumber(extractedText);
             var invoiceDate = FindInvoiceDate(extractedText);
+            var items = ParseItems(extractedText, preparedCatalog, invoiceNumber, invoiceDate);
             var detectedLanguage = DetectLanguage(extractedText);
             var duplicateInvoice = invoiceNumber is not null && await InvoiceAlreadyImportedAsync(invoiceNumber, cancellationToken);
 
@@ -135,10 +137,7 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
         }
         catch (FileNotFoundException exception)
         {
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
-            {
-                message = exception.Message
-            });
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = exception.Message });
         }
         catch (TimeoutException exception)
         {
@@ -148,14 +147,11 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
         {
             try
             {
-                if (Directory.Exists(tempRoot))
-                {
-                    Directory.Delete(tempRoot, true);
-                }
+                if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, true);
             }
             catch
             {
-                // Temporary cleanup should never break the request response.
+                // Best-effort temp cleanup only.
             }
         }
     }
@@ -268,7 +264,7 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
         var digitalText = await RunProcessAsync(
             "pdftotext",
             ["-layout", "-enc", "UTF-8", inputPath, "-"],
-            TimeSpan.FromSeconds(25),
+            TimeSpan.FromSeconds(20),
             cancellationToken);
 
         if (digitalText.ExitCode == 0 && CountLetters(digitalText.StdOut) >= 40)
@@ -279,8 +275,8 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
         var pagePrefix = Path.Combine(tempRoot, "page");
         var render = await RunProcessAsync(
             "pdftoppm",
-            ["-png", "-r", "180", "-f", "1", "-l", MaxPdfPages.ToString(CultureInfo.InvariantCulture), inputPath, pagePrefix],
-            TimeSpan.FromSeconds(90),
+            ["-png", "-r", "150", "-f", "1", "-l", MaxPdfPages.ToString(CultureInfo.InvariantCulture), inputPath, pagePrefix],
+            TimeSpan.FromSeconds(45),
             cancellationToken);
 
         if (render.ExitCode != 0)
@@ -308,10 +304,12 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
 
     private async Task<string> OcrImageAsync(string inputPath, CancellationToken cancellationToken)
     {
+        // PSM 6 is much faster for invoice/table-like documents than automatic sparse-layout analysis.
+        // Render has limited CPU; OpenMP is also explicitly constrained in RunProcessAsync/Dockerfile.
         var result = await RunProcessAsync(
             "tesseract",
-            [inputPath, "stdout", "-l", "bul+eng", "--oem", "1", "--psm", "4", "-c", "preserve_interword_spaces=1"],
-            TimeSpan.FromMinutes(3),
+            [inputPath, "stdout", "-l", "bul+eng", "--oem", "1", "--psm", "6"],
+            TimeSpan.FromSeconds(60),
             cancellationToken);
 
         if (result.ExitCode != 0)
@@ -339,10 +337,10 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
             StandardErrorEncoding = Encoding.UTF8,
         };
 
-        foreach (var argument in arguments)
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
+        startInfo.Environment["OMP_THREAD_LIMIT"] = "1";
+        startInfo.Environment["OMP_NUM_THREADS"] = "1";
+
+        foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
 
         Process process;
         try
@@ -368,128 +366,103 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                try
-                {
-                    process.Kill(true);
-                }
-                catch
-                {
-                    // Best effort cleanup.
-                }
-
-                throw new TimeoutException($"Invoice processing exceeded the {timeout.TotalSeconds:0}-second limit.");
+                try { process.Kill(true); } catch { }
+                throw new TimeoutException($"Invoice OCR did not finish within {timeout.TotalSeconds:0} seconds.");
             }
 
             return new ProcessResult(process.ExitCode, await stdoutTask, await stderrTask);
         }
     }
 
-    private static IReadOnlyList<ExtractedInvoiceItem> ParseItems(string text, IReadOnlyList<CatalogProduct> catalog)
+    private static IReadOnlyList<ExtractedInvoiceItem> ParseItems(
+        string text,
+        IReadOnlyList<CatalogProduct> catalog,
+        string? invoiceNumber,
+        string? invoiceDate)
     {
         var lines = text
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(line => Regex.Replace(line, @"[\t ]+", " ").Trim())
             .Where(line => line.Length >= 4)
-            .Where(IsPotentialItemLine)
-            .Take(600)
+            .Take(800)
             .ToArray();
 
         var parsed = new List<ExtractedInvoiceItem>();
 
         foreach (var line in lines)
         {
+            if (!IsPotentialItemLine(line, invoiceNumber, invoiceDate)) continue;
+
             var normalizedLine = NormalizeForMatch(line);
             var scored = catalog
-                .Select(product => new
-                {
-                    Product = product,
-                    Score = ScoreMatch(product, normalizedLine)
-                })
-                .Where(item => item.Score >= 0.48)
+                .Select(product => new { Product = product, Score = ScoreMatch(product, normalizedLine) })
+                .Where(item => item.Score >= 0.30)
                 .OrderByDescending(item => item.Score)
                 .ThenBy(item => item.Product.Title.Length)
-                .Take(3)
+                .Take(5)
                 .ToArray();
 
             var best = scored.FirstOrDefault();
             var quantity = ExtractQuantity(line, best?.Product.Title, out var quantityConfidence);
+            if (quantity <= 0 || quantity != decimal.Truncate(quantity)) continue;
 
-            if (best is null)
-            {
-                var rawName = ExtractRawDescription(line);
-                if (rawName.Length < 3 || quantity <= 0)
-                {
-                    continue;
-                }
+            var rawName = ExtractProductName(line, best?.Product.Title);
+            if (rawName.Length < 3) continue;
 
-                parsed.Add(new ExtractedInvoiceItem(
-                    rawName,
-                    quantity,
-                    null,
-                    null,
-                    0,
-                    quantityConfidence,
-                    [],
-                    line));
-                continue;
-            }
+            // Unmatched rows are accepted only when they look like actual line items, not metadata/footers.
+            if (best is null && !LooksLikeNumberedItem(line) && !QuantityUnitRegex().IsMatch(line)) continue;
 
             var candidates = scored
                 .Select(item => new ProductCandidate(item.Product.Id, item.Product.Title, Math.Round(item.Score, 3)))
                 .ToArray();
 
             parsed.Add(new ExtractedInvoiceItem(
-                best.Product.Title,
-                quantity > 0 ? quantity : 1,
-                best.Score >= 0.62 ? best.Product.Id : null,
-                best.Score >= 0.62 ? best.Product.Title : null,
-                Math.Round(best.Score, 3),
-                quantity > 0 ? quantityConfidence : 0.15,
+                rawName,
+                quantity,
+                best?.Score >= 0.58 ? best.Product.Id : null,
+                best?.Score >= 0.58 ? best.Product.Title : null,
+                best is null ? 0 : Math.Round(best.Score, 3),
+                quantityConfidence,
                 candidates,
                 line));
         }
 
         return parsed
-            .GroupBy(item => $"{item.MatchedProductId?.ToString() ?? NormalizeForMatch(item.RawName)}|{item.SourceLine}")
+            .GroupBy(item => NormalizeForMatch(item.RawName), StringComparer.Ordinal)
             .Select(group => group.First())
             .Take(200)
             .ToArray();
     }
 
-    private static bool IsPotentialItemLine(string line)
+    private static bool IsPotentialItemLine(string line, string? invoiceNumber, string? invoiceDate)
     {
         var normalized = NormalizeForMatch(line);
-        if (IgnoreLineTerms.Any(term => normalized.Contains(NormalizeForMatch(term), StringComparison.Ordinal)))
-        {
-            return false;
-        }
 
-        return line.Any(char.IsLetter) && NumberRegex().IsMatch(line);
+        if (RejectLineTerms.Any(term => normalized.Contains(NormalizeForMatch(term), StringComparison.Ordinal))) return false;
+        if (normalized.StartsWith("date ", StringComparison.Ordinal) || normalized.StartsWith("дата ", StringComparison.Ordinal)) return false;
+        if (normalized.StartsWith("invoice ", StringComparison.Ordinal) || normalized.StartsWith("фактура ", StringComparison.Ordinal)) return false;
+        if (!string.IsNullOrWhiteSpace(invoiceNumber) && line.Contains(invoiceNumber, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.IsNullOrWhiteSpace(invoiceDate) && normalized.Length < 40 && line.Contains(invoiceDate, StringComparison.OrdinalIgnoreCase)) return false;
+        if (DateOnlyLineRegex().IsMatch(line)) return false;
+        if (!line.Any(char.IsLetter)) return false;
+
+        return NumberRegex().IsMatch(line);
     }
+
+    private static bool LooksLikeNumberedItem(string line) => Regex.IsMatch(line, @"^\s*\d{1,3}[\s.)-]+\p{L}");
 
     private static double ScoreMatch(CatalogProduct product, string normalizedLine)
     {
-        if (normalizedLine.Length == 0)
-        {
-            return 0;
-        }
-
-        if (normalizedLine.Contains(product.NormalizedTitle, StringComparison.Ordinal))
-        {
-            return 0.99;
-        }
+        if (normalizedLine.Length == 0) return 0;
+        if (normalizedLine.Contains(product.NormalizedTitle, StringComparison.Ordinal)) return 0.99;
 
         var lineTokens = Tokenize(normalizedLine).ToHashSet(StringComparer.Ordinal);
-        if (lineTokens.Count == 0)
-        {
-            return 0;
-        }
+        if (lineTokens.Count == 0) return 0;
 
         var matchedTokens = product.Tokens.Count(lineTokens.Contains);
         var coverage = matchedTokens / (double)product.Tokens.Length;
         var union = product.Tokens.Union(lineTokens, StringComparer.Ordinal).Count();
         var jaccard = union == 0 ? 0 : matchedTokens / (double)union;
-
         var importantTokens = product.Tokens.Where(token => token.Length >= 4).ToArray();
         var importantMatched = importantTokens.Length == 0
             ? coverage
@@ -501,117 +474,63 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
     private static decimal ExtractQuantity(string line, string? productTitle, out double confidence)
     {
         confidence = 0;
-        var working = line;
 
-        if (!string.IsNullOrWhiteSpace(productTitle))
+        var unitMatch = QuantityUnitRegex().Match(line);
+        if (unitMatch.Success && TryParseDecimal(unitMatch.Groups[1].Value, out var unitQty) && unitQty > 0)
         {
-            var directIndex = working.IndexOf(productTitle, StringComparison.OrdinalIgnoreCase);
-            if (directIndex >= 0)
-            {
-                var suffix = working[(directIndex + productTitle.Length)..];
-                var direct = FindFirstPositiveNumber(suffix);
-                if (direct > 0)
-                {
-                    confidence = 0.92;
-                    return direct;
-                }
-            }
+            confidence = 0.98;
+            return unitQty;
         }
 
-        var firstLetter = working.TakeWhile(character => !char.IsLetter(character)).Count();
-        if (firstLetter > 0 && firstLetter < working.Length)
-        {
-            working = working[firstLetter..];
-        }
-
+        var working = Regex.Replace(line, @"^\s*\d{1,3}[\s.)-]+", string.Empty);
         var productNumbers = string.IsNullOrWhiteSpace(productTitle)
             ? new HashSet<string>()
             : NumberRegex().Matches(productTitle)
                 .Select(match => NormalizeNumberToken(match.Value))
                 .ToHashSet(StringComparer.Ordinal);
 
-        var matches = NumberRegex().Matches(working)
-            .Where(match => !match.Value.Contains('%'))
-            .Where(match => !productNumbers.Contains(NormalizeNumberToken(match.Value)))
-            .ToArray();
-
-        foreach (var match in matches)
+        foreach (Match match in NumberRegex().Matches(working))
         {
-            if (!TryParseDecimal(match.Value, out var value) || value <= 0)
-            {
-                continue;
-            }
+            if (match.Value.Contains('%')) continue;
+            if (match.Value.Contains('.') || match.Value.Contains(',')) continue; // prices/decimal totals are not stock quantities
+            if (productNumbers.Contains(NormalizeNumberToken(match.Value))) continue;
+            if (!TryParseDecimal(match.Value, out var value) || value <= 0 || value > 100000) continue;
 
-            // Quantities normally appear before unit price and line total. Large decimal values are more likely prices.
-            if (value <= 100000)
-            {
-                confidence = matches.Length >= 2 ? 0.68 : 0.52;
-                return value;
-            }
+            confidence = 0.62;
+            return value;
         }
 
         return 0;
     }
 
-    private static decimal FindFirstPositiveNumber(string text)
+    private static string ExtractProductName(string line, string? matchedTitle)
     {
-        foreach (Match match in NumberRegex().Matches(text))
-        {
-            if (match.Value.Contains('%'))
-            {
-                continue;
-            }
+        var cleaned = Regex.Replace(line, @"^\s*\d{1,3}[\s.)-]+", string.Empty).Trim();
 
-            if (TryParseDecimal(match.Value, out var value) && value > 0 && value <= 100000)
-            {
-                return value;
-            }
+        var unitMatch = QuantityUnitRegex().Match(cleaned);
+        if (unitMatch.Success && unitMatch.Index >= 3)
+        {
+            cleaned = cleaned[..unitMatch.Index];
+        }
+        else
+        {
+            // Remove the common trailing quantity / unit-price / line-total columns.
+            cleaned = Regex.Replace(cleaned, @"\s+\d+\s+(?:EUR|BGN|лв\.?|€).*$", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\s+\d+(?:[.,]\d{2})\s+(?:EUR|BGN|лв\.?|€).*$", string.Empty, RegexOptions.IgnoreCase);
         }
 
-        return 0;
-    }
+        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim(' ', '-', '|', ':', '›', '>');
 
-    private static bool TryParseDecimal(string value, out decimal result)
-    {
-        var cleaned = value.Trim().Replace(" ", string.Empty).Replace("%", string.Empty);
-
-        if (cleaned.Contains(',') && cleaned.Contains('.'))
-        {
-            var lastComma = cleaned.LastIndexOf(',');
-            var lastDot = cleaned.LastIndexOf('.');
-            cleaned = lastComma > lastDot
-                ? cleaned.Replace(".", string.Empty).Replace(',', '.')
-                : cleaned.Replace(",", string.Empty);
-        }
-        else if (cleaned.Contains(','))
-        {
-            cleaned = cleaned.Replace(',', '.');
-        }
-
-        return decimal.TryParse(cleaned, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out result);
-    }
-
-    private static string ExtractRawDescription(string line)
-    {
-        var cleaned = Regex.Replace(line, @"^\s*\d{1,4}[\.)]?\s+", string.Empty);
-        var firstPriceColumn = Regex.Match(cleaned, @"\s{1,}\d+(?:[.,]\d+)?(?:\s+\d+(?:[.,]\d+)?){1,}");
-        if (firstPriceColumn.Success && firstPriceColumn.Index >= 3)
-        {
-            cleaned = cleaned[..firstPriceColumn.Index];
-        }
-
-        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim(' ', '-', '|', ':');
-        return cleaned.Length > 180 ? cleaned[..180] : cleaned;
+        // If OCR name extraction is too damaged but catalog matching is strong, retain a useful name.
+        if (cleaned.Length < 3 && !string.IsNullOrWhiteSpace(matchedTitle)) return matchedTitle;
+        return cleaned.Length > 220 ? cleaned[..220] : cleaned;
     }
 
     private async Task<bool> InvoiceAlreadyImportedAsync(string invoiceNumber, CancellationToken cancellationToken)
     {
         var connection = db.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
-        if (shouldClose)
-        {
-            await connection.OpenAsync(cancellationToken);
-        }
+        if (shouldClose) await connection.OpenAsync(cancellationToken);
 
         try
         {
@@ -626,20 +545,14 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
         }
         finally
         {
-            if (shouldClose)
-            {
-                await connection.CloseAsync();
-            }
+            if (shouldClose) await connection.CloseAsync();
         }
     }
 
     private static string? FindInvoiceNumber(string text)
     {
         var match = InvoiceNumberRegex().Match(text);
-        if (!match.Success)
-        {
-            return null;
-        }
+        if (!match.Success) return null;
 
         var value = match.Groups[1].Value.Trim().Trim(':', '-', '#');
         return value.Length is >= 2 and <= 100 ? value : null;
@@ -647,6 +560,9 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
 
     private static string? FindInvoiceDate(string text)
     {
+        var labeled = LabeledDateRegex().Match(text);
+        if (labeled.Success) return labeled.Groups[1].Value;
+
         var match = DateRegex().Match(text);
         return match.Success ? match.Value : null;
     }
@@ -658,14 +574,11 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
         return cyrillic > Math.Max(8, latin / 5) ? "bg" : "en";
     }
 
-    private static string NormalizeExtractedText(string text)
-    {
-        return text
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n')
-            .Replace('\u00A0', ' ')
-            .Trim();
-    }
+    private static string NormalizeExtractedText(string text) => text
+        .Replace("\r\n", "\n", StringComparison.Ordinal)
+        .Replace('\r', '\n')
+        .Replace('\u00A0', ' ')
+        .Trim();
 
     private static string NormalizeForMatch(string value)
     {
@@ -689,25 +602,49 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
         return builder.ToString().Trim();
     }
 
-    private static string[] Tokenize(string normalized)
-    {
-        return normalized
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(token => token.Length >= 2)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-    }
+    private static string[] Tokenize(string normalized) => normalized
+        .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Where(token => token.Length >= 2)
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
 
     private static int CountLetters(string value) => value.Count(char.IsLetter);
-
     private static string NormalizeNumberToken(string value) => value.Replace(" ", string.Empty).Replace(',', '.');
+
+    private static bool TryParseDecimal(string value, out decimal result)
+    {
+        var cleaned = value.Trim().Replace(" ", string.Empty).Replace("%", string.Empty);
+        if (cleaned.Contains(',') && cleaned.Contains('.'))
+        {
+            var lastComma = cleaned.LastIndexOf(',');
+            var lastDot = cleaned.LastIndexOf('.');
+            cleaned = lastComma > lastDot
+                ? cleaned.Replace(".", string.Empty).Replace(',', '.')
+                : cleaned.Replace(",", string.Empty);
+        }
+        else if (cleaned.Contains(','))
+        {
+            cleaned = cleaned.Replace(',', '.');
+        }
+
+        return decimal.TryParse(cleaned, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out result);
+    }
 
     [GeneratedRegex(@"(?<![\p{L}\p{N}])[-+]?\d{1,6}(?:[\s.,]\d{3})*(?:[.,]\d+)?%?", RegexOptions.CultureInvariant)]
     private static partial Regex NumberRegex();
 
-    [GeneratedRegex(@"(?im)(?:invoice|фактура)\s*(?:no\.?|number|№|#)?\s*[:\-]?\s*([A-ZА-Я0-9][A-ZА-Я0-9\/\-.]{1,99})", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?i)(?<!\p{L})(\d{1,6})\s*(?:бр\.?|броя|pcs?\.?|pieces?|qty\.?|x)(?!\p{L})", RegexOptions.CultureInvariant)]
+    private static partial Regex QuantityUnitRegex();
+
+    [GeneratedRegex(@"(?im)(?:invoice|фактура)\s*(?:no\.?|number|№|#)\s*[:\-]?\s*([A-ZА-Я0-9][A-ZА-Я0-9\/\-.]{1,99})", RegexOptions.CultureInvariant)]
     private static partial Regex InvoiceNumberRegex();
+
+    [GeneratedRegex(@"(?im)(?:date|дата)\s*[:\-]?\s*((?:0?[1-9]|[12]\d|3[01])[.\-/](?:0?[1-9]|1[0-2])[.\-/](?:20)?\d{2})", RegexOptions.CultureInvariant)]
+    private static partial Regex LabeledDateRegex();
 
     [GeneratedRegex(@"\b(?:0?[1-9]|[12]\d|3[01])[.\-/](?:0?[1-9]|1[0-2])[.\-/](?:20)?\d{2}\b", RegexOptions.CultureInvariant)]
     private static partial Regex DateRegex();
+
+    [GeneratedRegex(@"^\s*(?:date|дата)?\s*[:\-]?\s*(?:0?[1-9]|[12]\d|3[01])[.\-/](?:0?[1-9]|1[0-2])[.\-/](?:20)?\d{2}\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex DateOnlyLineRegex();
 }
