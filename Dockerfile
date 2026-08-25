@@ -31,6 +31,10 @@ RUN apt-get update \
 
 COPY --from=build /app/publish .
 
+# Render instances have limited CPU. Tesseract/OpenMP can become dramatically slower
+# when it oversubscribes cores, so keep OCR to one worker thread per process.
+ENV OMP_THREAD_LIMIT=1
+ENV OMP_NUM_THREADS=1
 ENV ASPNETCORE_URLS=http://0.0.0.0:10000
 EXPOSE 10000
 
