@@ -19,6 +19,16 @@ RUN dotnet publish HygiaTrade.Server.API/HygiaTrade.Server.API.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
+
+# Invoice import OCR: Poppler reads/renders PDFs and Tesseract extracts Bulgarian + English text.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        poppler-utils \
+        tesseract-ocr \
+        tesseract-ocr-bul \
+        tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/publish .
 
 ENV ASPNETCORE_URLS=http://0.0.0.0:10000
