@@ -6,10 +6,9 @@ public class CreateReviewRequest
 {
     [Required]
     public required Guid ProductId { get; set; }
-    
-    [Required]
-    public required string Content { get; set; }
-    
-    [Required]
+
+    public string? Content { get; set; }
+
+    [Range(1, 5)]
     public required byte Rating { get; set; }
 }
