@@ -279,8 +279,8 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
         var pagePrefix = Path.Combine(tempRoot, "page");
         var render = await RunProcessAsync(
             "pdftoppm",
-            ["-png", "-r", "220", "-f", "1", "-l", MaxPdfPages.ToString(CultureInfo.InvariantCulture), inputPath, pagePrefix],
-            TimeSpan.FromSeconds(45),
+            ["-png", "-r", "180", "-f", "1", "-l", MaxPdfPages.ToString(CultureInfo.InvariantCulture), inputPath, pagePrefix],
+            TimeSpan.FromSeconds(90),
             cancellationToken);
 
         if (render.ExitCode != 0)
@@ -310,8 +310,8 @@ public partial class InvoiceImportController(ApplicationDbContext db) : Controll
     {
         var result = await RunProcessAsync(
             "tesseract",
-            [inputPath, "stdout", "-l", "bul+eng", "--psm", "6", "-c", "preserve_interword_spaces=1"],
-            TimeSpan.FromSeconds(40),
+            [inputPath, "stdout", "-l", "bul+eng", "--oem", "1", "--psm", "4", "-c", "preserve_interword_spaces=1"],
+            TimeSpan.FromMinutes(3),
             cancellationToken);
 
         if (result.ExitCode != 0)
