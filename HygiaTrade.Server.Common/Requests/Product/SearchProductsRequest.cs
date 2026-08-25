@@ -11,6 +11,7 @@ public class SearchProductsRequest : PaginationModel
     public Guid? CategoryId { get; set; }
     public decimal? MinPrice { get; set; }
     public decimal? MaxPrice { get; set; }
+    public bool InStockOnly { get; set; }
 
     // Kept as MinRating for API compatibility, but the value now represents a rating bucket from 1 to 5.
     public byte? MinRating { get; set; }
@@ -55,6 +56,11 @@ public class SearchProductsRequest : PaginationModel
         if (MinRating.HasValue)
         {
             result = ExpressionExtension<Data.Entities.Product>.AndAlso(result, FilterByRatingBucket());
+        }
+
+        if (InStockOnly)
+        {
+            result = ExpressionExtension<Data.Entities.Product>.AndAlso(result, x => x.Quantity > 0);
         }
 
         return result;
