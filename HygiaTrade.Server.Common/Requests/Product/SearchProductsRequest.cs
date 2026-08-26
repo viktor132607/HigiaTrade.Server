@@ -13,10 +13,7 @@ public class SearchProductsRequest : PaginationModel
     public decimal? MaxPrice { get; set; }
     public bool InStockOnly { get; set; }
 
-    // Kept as MinRating for API compatibility, but the value now represents a rating bucket from 1 to 5.
     public byte? MinRating { get; set; }
-
-    // Set by the API controller for authenticated admins; public callers cannot force inactive products to appear.
     public bool IncludeInactive { get; set; }
 
     public Expression<Func<Data.Entities.Product, bool>> GetPredicate()
@@ -79,7 +76,8 @@ public class SearchProductsRequest : PaginationModel
 
     private Expression<Func<Data.Entities.Product, bool>> FilterByCategory()
     {
-        return x => x.CategoryId == CategoryId!.Value;
+        Guid categoryId = CategoryId!.Value;
+        return x => x.CategoryId == categoryId || (x.Category != null && x.Category.ParentCategoryId == categoryId);
     }
 
     private Expression<Func<Data.Entities.Product, bool>> FilterByMinPrice()
