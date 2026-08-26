@@ -8,4 +8,5 @@ public class CreateCategoryRequest
     public required string Name { get; set; }
 
     public string? ImageURI { get; set; }
+    public Guid? ParentCategoryId { get; set; }
 }
