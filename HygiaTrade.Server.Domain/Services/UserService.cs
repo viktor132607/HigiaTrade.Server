@@ -12,7 +12,8 @@ public class UserService(IUserRepository userRepository, IAuthService authServic
 {
     public async Task<IEnumerable<UserResponse>?> GetAsync()
     {
-        IEnumerable<User> users = await userRepository.GetAllAsync();
+        IEnumerable<User> users = (await userRepository.GetAllAsync())
+            .OrderByDescending(user => user.CreatedOn);
 
         return users.Select(MapUser);
     }
@@ -69,6 +70,8 @@ public class UserService(IUserRepository userRepository, IAuthService authServic
         User updatedUserPayload = new()
         {
             Id = request.Id,
+            CreatedOn = userBeforeUpdate.CreatedOn,
+            ModifiedOn = userBeforeUpdate.ModifiedOn,
             Email = request.Email,
             Names = request.Names,
             Phone = request.Phone,
@@ -121,6 +124,8 @@ public class UserService(IUserRepository userRepository, IAuthService authServic
         User updatedUserPayload = new()
         {
             Id = request.UserId,
+            CreatedOn = userBeforeUpdate.CreatedOn,
+            ModifiedOn = userBeforeUpdate.ModifiedOn,
             Email = userBeforeUpdate.Email,
             Names = userBeforeUpdate.Names,
             Phone = userBeforeUpdate.Phone,
