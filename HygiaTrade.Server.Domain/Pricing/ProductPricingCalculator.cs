@@ -20,11 +20,23 @@ public static class ProductPricingCalculator
             && product.WholesaleMinQuantity > 0
             && (uint)quantity >= product.WholesaleMinQuantity;
 
-        decimal unitPriceInclVat = useWholesale
-            ? product.WholesalePrice
-            : product.DiscountedPrice > 0m
+        decimal unitPriceInclVat;
+
+        if (useWholesale)
+        {
+            unitPriceInclVat = product.WholesalePrice;
+
+            if (product.DiscountPercentage > 0)
+            {
+                unitPriceInclVat *= 1m - product.DiscountPercentage / 100m;
+            }
+        }
+        else
+        {
+            unitPriceInclVat = product.DiscountedPrice > 0m
                 ? product.DiscountedPrice
                 : product.RegularPrice;
+        }
 
         unitPriceInclVat = RoundMoney(unitPriceInclVat);
         decimal unitPriceExclVat = GrossToNet(unitPriceInclVat, product.VatRate);
