@@ -52,6 +52,15 @@ namespace HygiaTrade.Data
                 .HasIndex(brand => brand.Name)
                 .IsUnique();
 
+            builder.Entity<Category>()
+                .HasIndex(category => category.ParentCategoryId);
+
+            builder.Entity<Category>()
+                .HasOne(category => category.ParentCategory)
+                .WithMany(category => category.Subcategories)
+                .HasForeignKey(category => category.ParentCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             builder.Entity<OrderItem>()
                 .Property(oi => oi.SinglePrice)
                 .HasPrecision(18, 2);
