@@ -2,14 +2,14 @@ using System.ComponentModel.DataAnnotations;
 
 namespace HygiaTrade.Common.Requests.Category;
 
-public class UpdateCategoryRequest 
+public class UpdateCategoryRequest
 {
     [Required]
     public required Guid Id { get; set; }
-    
+
     [Required]
     public required string Name { get; set; }
-    
-    [Required]
-    public required string ImageURI { get; set; }
+
+    public string? ImageURI { get; set; }
+    public Guid? ParentCategoryId { get; set; }
 }
