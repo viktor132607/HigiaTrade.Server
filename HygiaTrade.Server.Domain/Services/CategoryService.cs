@@ -11,7 +11,9 @@ public class CategoryService(ICategoryRepository categoryRepository, IImageRepos
 {
     public async Task<IEnumerable<CategoryResponse>?> GetAsync()
     {
-        List<Category> categories = (await categoryRepository.GetAllAsync()).ToList();
+        List<Category> categories = (await categoryRepository.GetAllAsync())
+            .OrderByDescending(category => category.CreatedOn)
+            .ToList();
 
         List<CategoryResponse> response = new();
         foreach (Category category in categories)
