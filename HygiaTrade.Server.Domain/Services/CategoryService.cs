@@ -12,20 +12,13 @@ public class CategoryService(ICategoryRepository categoryRepository, IImageRepos
     public async Task<IEnumerable<CategoryResponse>?> GetAsync()
     {
         List<Category> categories = (await categoryRepository.GetAllAsync())
-            .OrderByDescending(category => category.CreatedOn)
+            .Where(category => !category.IsDeleted)
+            .OrderBy(category => category.ParentCategoryId.HasValue)
+            .ThenBy(category => category.Name)
             .ToList();
 
-        List<CategoryResponse> response = new();
-        foreach (Category category in categories)
-        {
-            response.Add(new()
-            {
-                Id = category.Id,
-                Name = category.Name,
-                ImageURI = category.ImageUri
-            });
-        }
-        return response;
+        Dictionary<Guid, string> names = categories.ToDictionary(category => category.Id, category => category.Name);
+        return categories.Select(category => ToResponse(category, names));
     }
 
     public async Task<CategoryResponse?> GetByIdAsync(Guid id)
@@ -35,31 +28,28 @@ public class CategoryService(ICategoryRepository categoryRepository, IImageRepos
         {
             throw new AppException("Category not found.").SetStatusCode(404);
         }
-        
-        return new()
-        {
-            Id = category.Id,
-            Name = category.Name,
-            ImageURI = category.ImageUri,
-        };
+
+        Dictionary<Guid, string> names = (await categoryRepository.GetAllAsync())
+            .Where(item => !item.IsDeleted)
+            .ToDictionary(item => item.Id, item => item.Name);
+        return ToResponse(category, names);
     }
 
     public async Task<CategoryResponse?> CreateAsync(CreateCategoryRequest request)
     {
+        Guid? parentId = await ValidateParentAsync(request.ParentCategoryId, null);
         Category category = new()
         {
-            Name = request.Name,
+            Name = request.Name.Trim(),
             ImageUri = request.ImageURI,
+            ParentCategoryId = parentId,
         };
 
         category = (await categoryRepository.AddAsync(category))!;
-
-        return new()
-        {
-            Id = category.Id,
-            Name = category.Name,
-            ImageURI = category.ImageUri,
-        };
+        Dictionary<Guid, string> names = (await categoryRepository.GetAllAsync())
+            .Where(item => !item.IsDeleted)
+            .ToDictionary(item => item.Id, item => item.Name);
+        return ToResponse(category, names);
     }
 
     public async Task<CategoryResponse?> UpdateAsync(UpdateCategoryRequest request)
@@ -70,17 +60,16 @@ public class CategoryService(ICategoryRepository categoryRepository, IImageRepos
             throw new AppException("Category not found.").SetStatusCode(404);
         }
 
-        existingCategory.Name = request.Name;
+        Guid? parentId = await ValidateParentAsync(request.ParentCategoryId, request.Id);
+        existingCategory.Name = request.Name.Trim();
         existingCategory.ImageUri = request.ImageURI;
-        
-        Category updatedCategory = (await categoryRepository.UpdateAsync(existingCategory))!;
+        existingCategory.ParentCategoryId = parentId;
 
-        return new()
-        {
-            Id = updatedCategory.Id,
-            Name = updatedCategory.Name,
-            ImageURI = updatedCategory.ImageUri,
-        };
+        Category updatedCategory = (await categoryRepository.UpdateAsync(existingCategory))!;
+        Dictionary<Guid, string> names = (await categoryRepository.GetAllAsync())
+            .Where(item => !item.IsDeleted)
+            .ToDictionary(item => item.Id, item => item.Name);
+        return ToResponse(updatedCategory, names);
     }
 
     public async Task<bool> DeleteAsync(Guid id)
@@ -90,6 +79,47 @@ public class CategoryService(ICategoryRepository categoryRepository, IImageRepos
         {
             throw new AppException("Category not found.").SetStatusCode(404);
         }
+
+        bool hasSubcategories = (await categoryRepository.GetAllAsync())
+            .Any(item => !item.IsDeleted && item.ParentCategoryId == id);
+        if (hasSubcategories)
+        {
+            throw new AppException("Delete or move the subcategories first.").SetStatusCode(409);
+        }
+
         return await categoryRepository.DeleteAsync(id);
     }
+
+    private async Task<Guid?> ValidateParentAsync(Guid? parentCategoryId, Guid? currentCategoryId)
+    {
+        if (!parentCategoryId.HasValue) return null;
+        if (currentCategoryId.HasValue && parentCategoryId == currentCategoryId)
+        {
+            throw new AppException("A category cannot be its own parent.").SetStatusCode(400);
+        }
+
+        Category? parent = await categoryRepository.GetByIdAsync(parentCategoryId.Value);
+        if (parent == null || parent.IsDeleted)
+        {
+            throw new AppException("Parent category not found.").SetStatusCode(404);
+        }
+
+        if (parent.ParentCategoryId.HasValue)
+        {
+            throw new AppException("Only one subcategory level is supported.").SetStatusCode(400);
+        }
+
+        return parent.Id;
+    }
+
+    private static CategoryResponse ToResponse(Category category, IReadOnlyDictionary<Guid, string> names) => new()
+    {
+        Id = category.Id,
+        Name = category.Name,
+        ImageURI = category.ImageUri,
+        ParentCategoryId = category.ParentCategoryId,
+        ParentCategoryName = category.ParentCategoryId.HasValue && names.TryGetValue(category.ParentCategoryId.Value, out string? parentName)
+            ? parentName
+            : null,
+    };
 }
