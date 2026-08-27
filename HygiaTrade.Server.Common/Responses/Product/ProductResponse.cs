@@ -10,6 +10,7 @@ public class ProductResponse
     public string? Brand { get; set; }
     public required string Description { get; set; }
     public required string MainImageUrl { get; set; }
+    public bool UsesDefaultImage { get; set; }
     public bool IsActive { get; set; }
 
     // Legacy aliases kept for the current frontend. Both are VAT-inclusive.
