@@ -68,6 +68,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddOpenApi();
 builder.Services.AddCustomServices();
 builder.Services.AddControllers();
+builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddRateLimiter(options =>
