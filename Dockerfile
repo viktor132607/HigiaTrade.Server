@@ -21,9 +21,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # Invoice import OCR: Poppler reads/renders PDFs and Tesseract extracts Bulgarian + English text.
+# Full database backup/restore: PostgreSQL client provides pg_dump and pg_restore.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         poppler-utils \
+        postgresql-client \
         tesseract-ocr \
         tesseract-ocr-bul \
         tesseract-ocr-eng \

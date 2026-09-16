@@ -8,6 +8,7 @@ using Scalar.AspNetCore;
 using HygiaTrade.API.Configuration;
 using HygiaTrade.API.Middlewares;
 using HygiaTrade.API.ServiceExtensions;
+using HygiaTrade.API.Services;
 using HygiaTrade.Common.Options;
 using HygiaTrade.Data;
 using HygiaTrade.Data.Helpers;
@@ -108,6 +109,11 @@ builder.Services.AddDbContext<ApplicationDbContext>(
 	options =>
 		options.UseNpgsql(
 			resolvedDatabaseConnection.ConnectionString));
+
+builder.Services.AddSingleton(serviceProvider =>
+	new DatabaseBackupService(
+		resolvedDatabaseConnection.ConnectionString,
+		serviceProvider.GetRequiredService<ILogger<DatabaseBackupService>>()));
 
 builder.Services
 	.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
