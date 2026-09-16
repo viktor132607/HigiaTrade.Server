@@ -16,8 +16,19 @@ public sealed class DatabaseBackupController(
     [Produces("application/octet-stream")]
     public async Task<IActionResult> ExportAsync(CancellationToken cancellationToken)
     {
-        DatabaseBackupArtifact backup =
-            await databaseBackupService.CreateBackupAsync(cancellationToken);
+        DatabaseBackupArtifact backup;
+
+        try
+        {
+            backup = await databaseBackupService.CreateBackupAsync(cancellationToken);
+        }
+        catch (DatabaseBackupException ex)
+        {
+            logger.LogError(ex, "Full database backup export failed.");
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                new { message = ex.Message });
+        }
 
         try
         {
@@ -78,6 +89,13 @@ public sealed class DatabaseBackupController(
         catch (InvalidDataException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+        catch (DatabaseBackupException ex)
+        {
+            logger.LogError(ex, "Full database restore failed.");
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                new { message = ex.Message });
         }
 
         logger.LogWarning(

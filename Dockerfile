@@ -21,11 +21,20 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # Invoice import OCR: Poppler reads/renders PDFs and Tesseract extracts Bulgarian + English text.
-# Full database backup/restore: PostgreSQL client provides pg_dump and pg_restore.
+# Full database backup/restore: use the current PostgreSQL client so pg_dump can also
+# dump older PostgreSQL server majors (the distro default client is only PostgreSQL 16).
 RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl --fail --show-error --silent \
+        https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         poppler-utils \
-        postgresql-client \
+        postgresql-client-18 \
         tesseract-ocr \
         tesseract-ocr-bul \
         tesseract-ocr-eng \

@@ -7,9 +7,23 @@ namespace HygiaTrade.API.Services;
 
 public sealed record DatabaseBackupArtifact(string FilePath, string FileName);
 
+public sealed class DatabaseBackupException : InvalidOperationException
+{
+    public DatabaseBackupException(string message)
+        : base(message)
+    {
+    }
+
+    public DatabaseBackupException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+
 public sealed class DatabaseBackupService
 {
     private const int CopyBufferSize = 128 * 1024;
+    private const int MaxToolErrorLength = 3000;
     private static readonly byte[] PgDumpMagic = Encoding.ASCII.GetBytes("PGDMP");
 
     private readonly NpgsqlConnectionStringBuilder connection;
@@ -48,11 +62,13 @@ public sealed class DatabaseBackupService
             await RunPostgresToolAsync(
                 "pg_dump",
                 [
+                    "--no-password",
                     "--format=custom",
                     "--compress=9",
                     "--file",
                     backupPath,
-                    connection.Database
+                    "--dbname",
+                    connection.Database!
                 ],
                 "create the database backup",
                 cancellationToken);
@@ -62,7 +78,7 @@ public sealed class DatabaseBackupService
             FileInfo backupFile = new(backupPath);
             if (!backupFile.Exists || backupFile.Length == 0)
             {
-                throw new InvalidOperationException(
+                throw new DatabaseBackupException(
                     "PostgreSQL reported a successful backup, but the generated archive is empty.");
             }
 
@@ -74,6 +90,17 @@ public sealed class DatabaseBackupService
                 backupFile.Length);
 
             return new DatabaseBackupArtifact(backupPath, downloadName);
+        }
+        catch (InvalidDataException ex)
+        {
+            if (backupPath is not null)
+            {
+                TryDelete(backupPath);
+            }
+
+            throw new DatabaseBackupException(
+                "The generated PostgreSQL backup archive failed validation.",
+                ex);
         }
         catch
         {
@@ -131,9 +158,10 @@ public sealed class DatabaseBackupService
                     "pg_restore",
                     ["--list", uploadedPath],
                     "validate the uploaded database backup",
-                    cancellationToken);
+                    cancellationToken,
+                    useDatabaseEnvironment: false);
             }
-            catch (PostgresToolException ex)
+            catch (DatabaseBackupException ex)
             {
                 throw new InvalidDataException(
                     "The uploaded file is not a valid PostgreSQL custom-format backup archive.",
@@ -141,13 +169,14 @@ public sealed class DatabaseBackupService
             }
 
             // Close any idle application connections before pg_restore starts replacing
-            // database objects. The restore itself is executed in one transaction, so a
-            // failed restore rolls back instead of leaving a half-restored database.
+            // database objects. The restore itself runs in one transaction so a failed
+            // restore does not leave a half-restored database.
             NpgsqlConnection.ClearAllPools();
 
             await RunPostgresToolAsync(
                 "pg_restore",
                 [
+                    "--no-password",
                     "--clean",
                     "--if-exists",
                     "--no-owner",
@@ -155,7 +184,7 @@ public sealed class DatabaseBackupService
                     "--single-transaction",
                     "--exit-on-error",
                     "--dbname",
-                    connection.Database,
+                    connection.Database!,
                     uploadedPath
                 ],
                 "restore the database backup",
@@ -182,7 +211,8 @@ public sealed class DatabaseBackupService
         string executable,
         IReadOnlyCollection<string> arguments,
         string operation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool useDatabaseEnvironment = true)
     {
         ProcessStartInfo startInfo = new()
         {
@@ -198,7 +228,10 @@ public sealed class DatabaseBackupService
             startInfo.ArgumentList.Add(argument);
         }
 
-        ApplyPostgresEnvironment(startInfo);
+        if (useDatabaseEnvironment)
+        {
+            ApplyPostgresEnvironment(startInfo);
+        }
 
         using Process process = new() { StartInfo = startInfo };
 
@@ -206,13 +239,13 @@ public sealed class DatabaseBackupService
         {
             if (!process.Start())
             {
-                throw new InvalidOperationException(
+                throw new DatabaseBackupException(
                     $"Unable to start {executable} while trying to {operation}.");
             }
         }
         catch (Win32Exception ex)
         {
-            throw new InvalidOperationException(
+            throw new DatabaseBackupException(
                 $"The PostgreSQL utility '{executable}' is not installed or is not available in PATH.",
                 ex);
         }
@@ -235,11 +268,17 @@ public sealed class DatabaseBackupService
 
         if (process.ExitCode != 0)
         {
-            throw new PostgresToolException(
+            string details = NormalizeToolError(standardError);
+
+            logger.LogError(
+                "{PostgresTool} failed while trying to {Operation} with exit code {ExitCode}: {ToolError}",
                 executable,
                 operation,
                 process.ExitCode,
-                standardError);
+                details);
+
+            throw new DatabaseBackupException(
+                $"{executable} failed to {operation}: {details}");
         }
 
         if (!string.IsNullOrWhiteSpace(standardError))
@@ -248,7 +287,7 @@ public sealed class DatabaseBackupService
                 "{PostgresTool} completed while trying to {Operation}: {ToolOutput}",
                 executable,
                 operation,
-                standardError.Trim());
+                NormalizeToolError(standardError));
         }
 
         // pg_restore --list writes its table of contents to stdout. Reading it above is
@@ -260,8 +299,10 @@ public sealed class DatabaseBackupService
     {
         startInfo.Environment["PGHOST"] = connection.Host;
         startInfo.Environment["PGPORT"] = connection.Port.ToString();
-        startInfo.Environment["PGDATABASE"] = connection.Database;
-        startInfo.Environment["PGUSER"] = connection.Username;
+        startInfo.Environment["PGDATABASE"] = connection.Database!;
+        startInfo.Environment["PGUSER"] = connection.Username!;
+        startInfo.Environment["PGCONNECT_TIMEOUT"] = "20";
+        startInfo.Environment["PGAPPNAME"] = "higiatrade-database-backup";
 
         if (!string.IsNullOrEmpty(connection.Password))
         {
@@ -275,6 +316,23 @@ public sealed class DatabaseBackupService
             "VerifyFull" => "verify-full",
             _ => sslMode.ToLowerInvariant()
         };
+    }
+
+    private static string NormalizeToolError(string standardError)
+    {
+        string details = string.IsNullOrWhiteSpace(standardError)
+            ? "PostgreSQL did not return additional error details."
+            : string.Join(
+                " ",
+                standardError
+                    .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+        if (details.Length > MaxToolErrorLength)
+        {
+            details = details[..MaxToolErrorLength] + "…";
+        }
+
+        return details;
     }
 
     private static async Task ValidatePgDumpHeaderAsync(
@@ -347,18 +405,5 @@ public sealed class DatabaseBackupService
         {
             // Best-effort cancellation cleanup only.
         }
-    }
-
-    private sealed class PostgresToolException(
-        string executable,
-        string operation,
-        int exitCode,
-        string standardError)
-        : InvalidOperationException(
-            $"{executable} failed to {operation} with exit code {exitCode}: " +
-            (string.IsNullOrWhiteSpace(standardError)
-                ? "No error details were returned by PostgreSQL."
-                : standardError.Trim()))
-    {
     }
 }
