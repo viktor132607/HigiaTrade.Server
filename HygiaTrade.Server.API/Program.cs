@@ -168,9 +168,14 @@ builder.Services.AddCors(options =>
 
 WebApplication app = builder.Build();
 
+Npgsql.NpgsqlConnectionStringBuilder activeDatabase =
+	new(resolvedDatabaseConnection.ConnectionString);
+
 app.Logger.LogInformation(
-	"PostgreSQL connection resolved from configuration key {DatabaseConnectionSource}.",
-	resolvedDatabaseConnection.SourceKey);
+	"PostgreSQL connection resolved from {DatabaseConnectionSource}: host={DatabaseHost}, database={DatabaseName}.",
+	resolvedDatabaseConnection.SourceKey,
+	activeDatabase.Host,
+	activeDatabase.Database);
 
 app.UseForwardedHeaders();
 
