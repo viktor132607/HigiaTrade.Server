@@ -54,7 +54,7 @@ namespace HygiaTrade.Tests.Unit.Services
         {
             orderRepositoryMock.Setup(x => x.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync((Order?)null);
 
-            AppException exception = await Assert.ThrowsAsync<AppException>(async () => 
+            AppException exception = await Assert.ThrowsAsync<AppException>(async () =>
                 await orderService.ChangeStatusAsync(new() { OrderId = Guid.NewGuid(), OrderStatus = OrderStatus.Cancelled }));
 
             Assert.Equal("Order not found", exception.Message);
@@ -89,8 +89,14 @@ namespace HygiaTrade.Tests.Unit.Services
         [Fact]
         public async Task GetAsync_ShouldReturnOrderResponse()
         {
-            Order order = new() { Id = Guid.NewGuid(), OrderTotalPrice = 100, Status = OrderStatus.Created };
-            authServiceMock.Setup(x => x.GetCurrentUserId()).ReturnsAsync(order.UserId.ToString());
+            Order order = new()
+            {
+                Id = Guid.NewGuid(),
+                UserId = Guid.NewGuid(),
+                OrderTotalPrice = 100,
+                Status = OrderStatus.Created
+            };
+            authServiceMock.Setup(x => x.GetCurrentUserId()).ReturnsAsync(order.UserId!.Value.ToString());
             orderRepositoryMock.Setup(x => x.GetByUserIdAsync(It.IsAny<Guid>())).ReturnsAsync(order);
 
             OrderResponse result = await orderService.GetAsync();

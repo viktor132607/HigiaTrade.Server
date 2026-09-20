@@ -28,7 +28,7 @@ namespace HygiaTrade.Tests.Unit.Services
         }
 
         [Fact]
-        public async Task GetAsync_ShouldReturnUsers()
+        public async Task GetAsync_ShouldReturnUsersNewestFirst()
         {
             List<User> users = new()
             {
@@ -37,14 +37,16 @@ namespace HygiaTrade.Tests.Unit.Services
                     Id = Guid.NewGuid(),
                     Email = "user1@example.com",
                     Names = null,
-                    Phone = null
+                    Phone = null,
+                    CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                 },
                 new()
                 {
                     Id = Guid.NewGuid(),
                     Email = "user2@example.com",
                     Names = null,
-                    Phone = null
+                    Phone = null,
+                    CreatedOn = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)
                 }
             };
 
@@ -54,8 +56,8 @@ namespace HygiaTrade.Tests.Unit.Services
 
             Assert.NotNull(result);
             Assert.Collection(result,
-                item => Assert.Equal("user1@example.com", item.Email),
-                item => Assert.Equal("user2@example.com", item.Email));
+                item => Assert.Equal("user2@example.com", item.Email),
+                item => Assert.Equal("user1@example.com", item.Email));
         }
 
         [Fact]

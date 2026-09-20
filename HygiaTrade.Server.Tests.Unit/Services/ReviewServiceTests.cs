@@ -56,6 +56,8 @@ namespace HygiaTrade.Tests.Unit.Services
         [Fact]
         public async Task UpdateAsync_ValidReview_ShouldReturnUpdatedReview()
         {
+            Guid userId = Guid.NewGuid();
+            Guid productId = Guid.NewGuid();
             UpdateReviewRequest request = new()
             {
                 Id = Guid.NewGuid(),
@@ -63,14 +65,24 @@ namespace HygiaTrade.Tests.Unit.Services
                 Rating = 5
             };
 
-            Review existingReview = new() { Id = request.Id, Content = "Old Content", Rating = 3 };
+            Review existingReview = new()
+            {
+                Id = request.Id,
+                UserId = userId,
+                ProductId = productId,
+                Content = "Old Content",
+                Rating = 3
+            };
+            authServiceMock.Setup(a => a.GetCurrentUserId()).ReturnsAsync(userId.ToString());
             reviewRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(existingReview);
             reviewRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Review>())).ReturnsAsync(existingReview);
-            userRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(new User
+            reviewRepositoryMock.Setup(r => r.GetReviews(productId)).ReturnsAsync(new[] { existingReview });
+            productRepositoryMock.Setup(p => p.UpdateRatingAsync(productId, It.IsAny<double>())).Returns(Task.CompletedTask);
+            userRepositoryMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(new User
             {
                 Names = "John Doe",
-                Email = null,
-                Phone = null
+                Email = "john@example.com",
+                Phone = "123"
             });
 
             ReviewResponse result = await reviewService.UpdateAsync(request);
@@ -83,6 +95,7 @@ namespace HygiaTrade.Tests.Unit.Services
         [Fact]
         public async Task CreateAsync_ValidReview_ShouldReturnCreatedReview()
         {
+            Guid userId = Guid.NewGuid();
             CreateReviewRequest request = new()
             {
                 ProductId = Guid.NewGuid(),
@@ -90,13 +103,16 @@ namespace HygiaTrade.Tests.Unit.Services
                 Rating = 5
             };
 
-            authServiceMock.Setup(a => a.GetCurrentUserId()).ReturnsAsync(Guid.NewGuid().ToString());
-            reviewRepositoryMock.Setup(r => r.AddAsync(It.IsAny<Review>())).ReturnsAsync(new Review { Id = Guid.NewGuid() });
-            userRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(new User
+            authServiceMock.Setup(a => a.GetCurrentUserId()).ReturnsAsync(userId.ToString());
+            orderRepositoryMock.Setup(r => r.HasConfirmedPurchaseAsync(userId, request.ProductId)).ReturnsAsync(true);
+            reviewRepositoryMock.Setup(r => r.GetReviews(request.ProductId)).ReturnsAsync(Array.Empty<Review>());
+            reviewRepositoryMock.Setup(r => r.AddAsync(It.IsAny<Review>())).ReturnsAsync((Review review) => review);
+            productRepositoryMock.Setup(p => p.UpdateRatingAsync(request.ProductId, It.IsAny<double>())).Returns(Task.CompletedTask);
+            userRepositoryMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(new User
             {
                 Names = "Jane Doe",
-                Email = null,
-                Phone = null
+                Email = "jane@example.com",
+                Phone = "123"
             });
 
             ReviewResponse result = await reviewService.CreateAsync(request);
@@ -109,6 +125,7 @@ namespace HygiaTrade.Tests.Unit.Services
         [Fact]
         public async Task CreateAsync_Review_ShouldRecalculateProductRating()
         {
+            Guid userId = Guid.NewGuid();
             CreateReviewRequest request = new()
             {
                 ProductId = Guid.NewGuid(),
@@ -116,19 +133,21 @@ namespace HygiaTrade.Tests.Unit.Services
                 Rating = 4
             };
 
-            authServiceMock.Setup(a => a.GetCurrentUserId()).ReturnsAsync(Guid.NewGuid().ToString());
-            reviewRepositoryMock.Setup(r => r.AddAsync(It.IsAny<Review>())).ReturnsAsync(new Review { Id = Guid.NewGuid() });
-            userRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(new User
+            authServiceMock.Setup(a => a.GetCurrentUserId()).ReturnsAsync(userId.ToString());
+            orderRepositoryMock.Setup(r => r.HasConfirmedPurchaseAsync(userId, request.ProductId)).ReturnsAsync(true);
+            reviewRepositoryMock.Setup(r => r.GetReviews(request.ProductId)).ReturnsAsync(Array.Empty<Review>());
+            reviewRepositoryMock.Setup(r => r.AddAsync(It.IsAny<Review>())).ReturnsAsync((Review review) => review);
+            userRepositoryMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(new User
             {
                 Names = "John Smith",
-                Email = null,
-                Phone = null
+                Email = "john@example.com",
+                Phone = "123"
             });
             productRepositoryMock.Setup(p => p.UpdateRatingAsync(It.IsAny<Guid>(), It.IsAny<double>())).Returns(Task.CompletedTask);
 
             await reviewService.CreateAsync(request);
 
-            productRepositoryMock.Verify(p => p.UpdateRatingAsync(It.IsAny<Guid>(), It.IsAny<double>()), Times.Once);
+            productRepositoryMock.Verify(p => p.UpdateRatingAsync(request.ProductId, It.IsAny<double>()), Times.Once);
         }
 
         [Fact]
