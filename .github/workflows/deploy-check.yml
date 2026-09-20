@@ -1,4 +1,4 @@
-name: Deploy Check
+name: Backend CI
 
 on:
   push:
@@ -7,14 +7,43 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - run: dotnet restore HygiaTrade.Server.sln
-      - run: dotnet build HygiaTrade.Server.sln --configuration Release --no-restore
-      - run: docker build -f Dockerfile .
+
+      - name: Restore
+        run: dotnet restore HygiaTrade.Server.sln
+
+      - name: Build
+        run: dotnet build HygiaTrade.Server.sln --configuration Release --no-restore
+
+      - name: Unit tests
+        run: dotnet test HygiaTrade.Server.Tests.Unit/HygiaTrade.Server.Tests.Unit.csproj --configuration Release --no-build --logger "trx;LogFileName=unit-tests.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-unit-test-results
+          path: HygiaTrade.Server.Tests.Unit/TestResults/**/*.trx
+          if-no-files-found: ignore
+
+      - name: Docker build
+        run: docker build -f Dockerfile .
