@@ -15,10 +15,10 @@ public static class DatabaseConnectionStringResolver
 {
     private static readonly string[] CandidateKeys =
     [
-        "ConnectionStrings:DefaultConnection",
-        "ConnectionStrings:Postgres",
         "DATABASE_URL",
-        "POSTGRES_URL"
+        "POSTGRES_URL",
+        "ConnectionStrings:DefaultConnection",
+        "ConnectionStrings:Postgres"
     ];
 
     public static ResolvedDatabaseConnection Resolve(IConfiguration configuration, IHostEnvironment environment)

@@ -8,10 +8,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Remove="Configuration\**\*.cs" />
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="coverlet.collector" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />

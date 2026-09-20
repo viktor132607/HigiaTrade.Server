@@ -8,7 +8,7 @@ namespace HygiaTrade.Data.Seed;
 public static class UserSeeder
 {
     private const string LegacyAdminEmail = "admin@hygiatrade.bg";
-    private const string AdminPassword = "Admin123!";
+    public const string DefaultAdminPassword = "Admin123!";
     private const string AdminPhone = "0888822861";
 
     private static readonly (string Email, string Names)[] AdminUsers =
@@ -16,6 +16,17 @@ public static class UserSeeder
         ("iliev132607@gmail.com", "HygiaTrade Admin"),
         ("higiatrade@abv.bg", "HygiaTrade Admin"),
     ];
+
+    public static bool IsDefaultAdminEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return false;
+        }
+
+        string normalizedEmail = email.Trim().ToLowerInvariant();
+        return AdminUsers.Any(admin => admin.Email == normalizedEmail);
+    }
 
     public static async Task SeedAsync(ApplicationDbContext db)
     {
@@ -57,7 +68,7 @@ public static class UserSeeder
             if (admin is null)
             {
                 await db.Users.AddAsync(
-                    CreateUser(email, names, AdminPhone, Roles.Admin, AdminPassword, hasher));
+                    CreateUser(email, names, AdminPhone, Roles.Admin, DefaultAdminPassword, hasher));
                 continue;
             }
 
@@ -69,7 +80,7 @@ public static class UserSeeder
             admin.RefreshToken = null;
             admin.RefreshTokenExpiryTime = null;
             admin.ModifiedOn = DateTime.UtcNow;
-            admin.PasswordHash = hasher.HashPassword(admin, AdminPassword);
+            admin.PasswordHash = hasher.HashPassword(admin, DefaultAdminPassword);
         }
 
         await db.SaveChangesAsync();

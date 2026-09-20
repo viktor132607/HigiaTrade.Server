@@ -1,9 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.Collections.Generic;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Configuration;
 using HygiaTrade.API.Configuration;
 using Xunit;
 
@@ -11,52 +8,6 @@ namespace HygiaTrade.Tests.Unit.Configuration;
 
 public class DatabaseConnectionStringResolverTests
 {
-
-    [Fact]
-    public void Resolve_ShouldPreferExplicitDefaultConnection_OverPlatformDatabaseUrl()
-    {
-        TestHostEnvironment environment = new TestHostEnvironment(Environments.Production);
-        Microsoft.Extensions.Configuration.IConfiguration configuration =
-            new Microsoft.Extensions.Configuration.ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:DefaultConnection"] =
-                        "Host=dpg-new;Port=5432;Database=newdb;Username=newuser;Password=newpass;SSL Mode=Require;",
-                    ["DATABASE_URL"] =
-                        "postgresql://olduser:oldpass@dpg-old:5432/olddb?sslmode=require"
-                })
-                .Build();
-
-        ResolvedDatabaseConnection result =
-            DatabaseConnectionStringResolver.Resolve(configuration, environment);
-
-        Assert.Equal("ConnectionStrings:DefaultConnection", result.SourceKey);
-        Assert.Contains("Host=dpg-new", result.ConnectionString);
-        Assert.Contains("Database=newdb", result.ConnectionString);
-    }
-
-    [Fact]
-    public void Resolve_ShouldPreferExplicitDefaultConnection_OverPlatformDatabaseUrl()
-    {
-        TestHostEnvironment environment = new TestHostEnvironment(Environments.Production);
-        IConfiguration configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:DefaultConnection"] =
-                    "Host=dpg-new;Port=5432;Database=newdb;Username=newuser;SSL Mode=Require;",
-                ["DATABASE_URL"] =
-                    "Host=dpg-old;Port=5432;Database=olddb;Username=olduser;SSL Mode=Require;"
-            })
-            .Build();
-
-        ResolvedDatabaseConnection result =
-            DatabaseConnectionStringResolver.Resolve(configuration, environment);
-
-        Assert.Equal("ConnectionStrings:DefaultConnection", result.SourceKey);
-        Assert.Contains("Host=dpg-new", result.ConnectionString);
-        Assert.Contains("Database=newdb", result.ConnectionString);
-    }
-
     [Fact]
     public void NormalizeAndValidate_ShouldReturnExistingNpgsqlConnectionString_ForDevelopment()
     {

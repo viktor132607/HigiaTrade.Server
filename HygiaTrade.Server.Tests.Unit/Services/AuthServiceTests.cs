@@ -156,6 +156,51 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task LoginAsync_ShouldNormalizeEmail()
+    {
+        User user = new()
+        {
+            Email = "customer@example.com",
+            Names = "Customer Example",
+            Phone = "123456789",
+            Role = Roles.RegisteredCustomer,
+            PasswordHash = "temporaryPasswordHash"
+        };
+
+        user.PasswordHash = new PasswordHasher<User>().HashPassword(user, "password123");
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        TokenResponse? response = await _authService.LoginAsync(new LoginUserRequest
+        {
+            Email = "  CUSTOMER@EXAMPLE.COM  ",
+            Password = "password123"
+        });
+
+        Assert.NotNull(response);
+        Assert.Equal("customer@example.com", response.Email);
+    }
+
+    [Fact]
+    public async Task LoginAsync_DefaultAdminCredentials_ShouldRepairMissingAdmin()
+    {
+        TokenResponse? response = await _authService.LoginAsync(new LoginUserRequest
+        {
+            Email = "iliev132607@gmail.com",
+            Password = "Admin123!"
+        });
+
+        Assert.NotNull(response);
+        Assert.Equal(Roles.Admin, response.Role);
+
+        User admin = await _context.Users.SingleAsync(
+            user => user.Email == "iliev132607@gmail.com");
+
+        Assert.False(admin.IsDeleted);
+        Assert.Equal(Roles.Admin, admin.Role);
+    }
+
+    [Fact]
     public async Task LogoutAsync_ShouldReturnTrue_WhenLogoutIsSuccessful()
     {
         _context.Users.Add(new()
