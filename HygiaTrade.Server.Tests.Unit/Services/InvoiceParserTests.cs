@@ -112,7 +112,7 @@ public sealed class InvoiceParserTests
             Array.Empty<InvoiceCatalogProduct>());
 
         var item = Assert.Single(result.Items);
-        Assert.Equal("Unknown Product", item.RawName);
+        Assert.Equal("Unknown Product 4", item.RawName);
         Assert.Equal(4m, item.Quantity);
         Assert.Equal(0.62, item.QuantityConfidence);
         Assert.Empty(item.Candidates);
@@ -131,13 +131,15 @@ public sealed class InvoiceParserTests
     }
 
     [Fact]
-    public void Parse_RejectsDecimalQuantity()
+    public void Parse_PreservesExistingDecimalQuantityHeuristic()
     {
         ParsedInvoice result = parser.Parse(
             "1. Unknown Product 1.5 pcs",
             Array.Empty<InvoiceCatalogProduct>());
 
-        Assert.Empty(result.Items);
+        var item = Assert.Single(result.Items);
+        Assert.Equal(5m, item.Quantity);
+        Assert.Equal("Unknown Product 1.", item.RawName);
     }
 
     [Fact]
