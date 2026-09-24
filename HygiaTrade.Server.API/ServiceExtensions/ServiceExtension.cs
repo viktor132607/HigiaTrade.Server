@@ -20,6 +20,7 @@ public static class ServiceExtension
 		services.AddTransient<IBrandService, BrandService>();
 		services.AddTransient<IContactService, ContactService>();
 		services.AddTransient<IDistributionRouteService, DistributionRouteService>();
+		services.AddTransient<IInvoiceImportService, InvoiceImportService>();
 		services.AddTransient<IProductService, ProductService>();
 		services.AddTransient<IWishlistService, WishlistService>();
 		services.AddTransient<IReviewService, ReviewService>();
