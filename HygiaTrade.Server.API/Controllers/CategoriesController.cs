@@ -14,7 +14,7 @@ public class CategoriesController(ICategoryService categoryService) : Controller
     [HttpGet]
     public async Task<IActionResult> GetAllAsync()
     {
-        return await ControllerProcessor.ProcessAsync(() => categoryService.GetAsync(), this);
+        return Ok(await categoryService.GetAsync() ?? []);
     }
     
     [HttpGet("{id}")]
