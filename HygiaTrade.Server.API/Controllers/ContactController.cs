@@ -9,28 +9,19 @@ namespace HygiaTrade.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 public class ContactController(
-	IEmailNotificationService emailNotificationService) : ControllerBase
+    IContactService contactService) : ControllerBase
 {
-	[AllowAnonymous]
-	[HttpPost]
-	[EnableRateLimiting("contact")]
-	public async Task<IActionResult> SendAsync(
-		[FromBody] CreateContactRequest request)
-	{
-		string subject = string.IsNullOrWhiteSpace(request.Subject)
-			? "Contact enquiry"
-			: request.Subject.Trim();
+    [AllowAnonymous]
+    [HttpPost]
+    [EnableRateLimiting("contact")]
+    public async Task<IActionResult> SendAsync(
+        [FromBody] CreateContactRequest request)
+    {
+        await contactService.SendAsync(request);
 
-		await emailNotificationService.SendContactMessageAsync(
-			request.Name.Trim(),
-			request.Email.Trim(),
-			request.Phone.Trim(),
-			subject,
-			request.Message.Trim());
-
-		return Ok(new
-		{
-			message = "Contact message sent successfully."
-		});
-	}
+        return Ok(new
+        {
+            message = "Contact message sent successfully."
+        });
+    }
 }
