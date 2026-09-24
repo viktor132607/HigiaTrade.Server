@@ -100,6 +100,36 @@ public sealed class DatabaseBackupControllerTests
                 CancellationToken.None));
     }
 
+
+    [Fact]
+    public async Task ExportAsync_Rethrows_WhenBackupPathIsDirectory_AndCleanupAlsoFails()
+    {
+        string directoryPath = Path.Combine(
+            Path.GetTempPath(),
+            $"backup-dir-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(directoryPath);
+
+        try
+        {
+            DatabaseBackupArtifact artifact =
+                new(directoryPath, "backup.dump");
+
+            backupService
+                .Setup(service => service.CreateBackupAsync(
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(artifact);
+
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(
+                () => CreateController().ExportAsync(
+                    CancellationToken.None));
+        }
+        finally
+        {
+            Directory.Delete(directoryPath);
+        }
+    }
+
     [Fact]
     public async Task RestoreAsync_ReturnsBadRequest_WhenArchiveIsNull()
     {

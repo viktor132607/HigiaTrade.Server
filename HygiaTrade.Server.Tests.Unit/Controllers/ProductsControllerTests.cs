@@ -89,6 +89,37 @@ public sealed class ProductsControllerTests
         Assert.True(request.IncludeInactive);
     }
 
+
+    [Fact]
+    public async Task GetAllAsync_ResolvesEmptyCollection_WhenItemsAreNull()
+    {
+        SearchProductsRequest request = new();
+
+        productService
+            .Setup(service => service.SearchProductsAsync(request))
+            .ReturnsAsync(new Paginated<ProductsResponse>
+            {
+                Items = null,
+                TotalCount = 0
+            });
+
+        IEnumerable<ProductsResponse>? captured = null;
+
+        imageService
+            .Setup(service => service.ResolveAsync(
+                It.IsAny<IEnumerable<ProductsResponse>>()))
+            .Callback<IEnumerable<ProductsResponse>>(
+                items => captured = items)
+            .Returns(Task.CompletedTask);
+
+        IActionResult result =
+            await CreateController().GetAllAsync(request);
+
+        Assert.IsType<OkObjectResult>(result);
+        Assert.NotNull(captured);
+        Assert.Empty(captured);
+    }
+
     [Fact]
     public async Task GetBestSellersAsync_ReturnsOk_WhenProductsExist()
     {
