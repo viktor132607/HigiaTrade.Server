@@ -34,8 +34,14 @@ jobs:
       - name: Build
         run: dotnet build HygiaTrade.Server.sln --configuration Release --no-restore
 
-      - name: Unit tests
-        run: dotnet test HygiaTrade.Server.Tests.Unit/HygiaTrade.Server.Tests.Unit.csproj --configuration Release --no-build --logger "trx;LogFileName=unit-tests.trx"
+      - name: Unit tests with coverage
+        run: >
+          dotnet test
+          HygiaTrade.Server.Tests.Unit/HygiaTrade.Server.Tests.Unit.csproj
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=unit-tests.trx"
+          --collect:"XPlat Code Coverage"
 
       - name: Upload test results
         if: always()
@@ -44,6 +50,14 @@ jobs:
           name: backend-unit-test-results
           path: HygiaTrade.Server.Tests.Unit/TestResults/**/*.trx
           if-no-files-found: ignore
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-code-coverage
+          path: HygiaTrade.Server.Tests.Unit/TestResults/**/coverage.cobertura.xml
+          if-no-files-found: error
 
       - name: Docker build
         run: docker build -f Dockerfile .
