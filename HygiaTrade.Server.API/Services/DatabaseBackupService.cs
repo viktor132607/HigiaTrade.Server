@@ -20,7 +20,17 @@ public sealed class DatabaseBackupException : InvalidOperationException
     }
 }
 
-public sealed class DatabaseBackupService
+public interface IDatabaseBackupService
+{
+    Task<DatabaseBackupArtifact> CreateBackupAsync(
+        CancellationToken cancellationToken = default);
+
+    Task RestoreBackupAsync(
+        Stream archive,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class DatabaseBackupService : IDatabaseBackupService
 {
     private const int CopyBufferSize = 128 * 1024;
     private const int MaxToolErrorLength = 3000;

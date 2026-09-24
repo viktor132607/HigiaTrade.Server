@@ -9,7 +9,7 @@ namespace HygiaTrade.API.Controllers;
 [Authorize(Roles = Roles.Admin)]
 [Route("api/database-backup")]
 public sealed class DatabaseBackupController(
-    DatabaseBackupService databaseBackupService,
+    IDatabaseBackupService databaseBackupService,
     ILogger<DatabaseBackupController> logger) : ControllerBase
 {
     [HttpGet("export")]

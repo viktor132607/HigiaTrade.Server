@@ -110,7 +110,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(
 		options.UseNpgsql(
 			resolvedDatabaseConnection.ConnectionString));
 
-builder.Services.AddSingleton(serviceProvider =>
+builder.Services.AddSingleton<IDatabaseBackupService>(serviceProvider =>
 	new DatabaseBackupService(
 		resolvedDatabaseConnection.ConnectionString,
 		serviceProvider.GetRequiredService<ILogger<DatabaseBackupService>>()));
