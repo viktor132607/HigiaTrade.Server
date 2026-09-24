@@ -27,6 +27,7 @@ public static class ServiceExtension
 		services.AddTransient<INewProductsService, NewProductsService>();
 		services.AddTransient<IInventoryService, InventoryService>();
 		services.AddTransient<IStoredImageService, StoredImageService>();
+		services.AddTransient<ITranslationService, TranslationService>();
 		services.AddTransient<IProductService, ProductService>();
 		services.AddTransient<IWishlistService, WishlistService>();
 		services.AddTransient<IReviewService, ReviewService>();
