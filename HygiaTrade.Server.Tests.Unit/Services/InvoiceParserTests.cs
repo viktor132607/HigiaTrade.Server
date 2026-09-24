@@ -180,6 +180,92 @@ public sealed class InvoiceParserTests
         Assert.True(item.MatchConfidence < 0.58);
     }
 
+
+    [Fact]
+    public void Parse_RejectsNumberedLineWithoutQuantity()
+    {
+        ParsedInvoice result = parser.Parse(
+            "1. Unknown Product",
+            Array.Empty<InvoiceCatalogProduct>());
+
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public void Parse_SkipsProductNumbers_WhenFindingFallbackQuantity()
+    {
+        Guid productId = Guid.NewGuid();
+
+        ParsedInvoice result = parser.Parse(
+            "1. Widget 500 2 10 EUR",
+            new[]
+            {
+                new InvoiceCatalogProduct(productId, "Widget 500")
+            });
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(2m, item.Quantity);
+        Assert.Equal(productId, item.MatchedProductId);
+    }
+
+    [Fact]
+    public void Parse_ScoresCatalogTitlesWithoutLongTokens()
+    {
+        Guid productId = Guid.NewGuid();
+
+        ParsedInvoice result = parser.Parse(
+            "1. AB XX 2 pcs",
+            new[]
+            {
+                new InvoiceCatalogProduct(productId, "AB CD")
+            });
+
+        var item = Assert.Single(result.Items);
+        Assert.Contains(
+            item.Candidates,
+            candidate => candidate.Id == productId);
+    }
+
+    [Fact]
+    public void Parse_UsesMatchedTitle_WhenExtractedNameIsTooShort()
+    {
+        Guid productId = Guid.NewGuid();
+
+        ParsedInvoice result = parser.Parse(
+            "AB 2 pcs",
+            new[]
+            {
+                new InvoiceCatalogProduct(productId, "AB")
+            });
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("AB", item.RawName);
+        Assert.Equal(productId, item.MatchedProductId);
+    }
+
+    [Fact]
+    public void Parse_TruncatesVeryLongRawProductName()
+    {
+        string longName = new('A', 230);
+
+        ParsedInvoice result = parser.Parse(
+            $"1. {longName} 2 pcs",
+            Array.Empty<InvoiceCatalogProduct>());
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(220, item.RawName.Length);
+    }
+
+    [Fact]
+    public void Parse_IgnoresPercentageAsFallbackQuantity()
+    {
+        ParsedInvoice result = parser.Parse(
+            "1. Unknown Product 10%",
+            Array.Empty<InvoiceCatalogProduct>());
+
+        Assert.Empty(result.Items);
+    }
+
     [Fact]
     public void Parse_IgnoresCatalogTitlesWithoutTokens()
     {
