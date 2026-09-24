@@ -20,6 +20,11 @@ public static class ServiceExtension
 		services.AddTransient<IBrandService, BrandService>();
 		services.AddTransient<IContactService, ContactService>();
 		services.AddTransient<IDistributionRouteService, DistributionRouteService>();
+		services.AddScoped<IDistributionRouteRepository, DistributionRouteRepository>();
+		services.AddTransient<IDistributionRouteGeocoder, DistributionRouteGeocoder>();
+		services.AddTransient<IDistributionRoadRouter, DistributionRoadRouter>();
+		services.AddTransient<IDistributionRouteOptimizer, DistributionRouteOptimizer>();
+		services.AddTransient<IDistributionRouteDelay, DistributionRouteDelay>();
 		services.AddTransient<IInvoiceImportService, InvoiceImportService>();
 		services.AddTransient<IInvoiceTextExtractor, InvoiceTextExtractor>();
 		services.AddTransient<IInvoiceProcessRunner, InvoiceProcessRunner>();
