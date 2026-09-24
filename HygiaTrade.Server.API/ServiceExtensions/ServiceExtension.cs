@@ -21,6 +21,10 @@ public static class ServiceExtension
 		services.AddTransient<IContactService, ContactService>();
 		services.AddTransient<IDistributionRouteService, DistributionRouteService>();
 		services.AddTransient<IInvoiceImportService, InvoiceImportService>();
+		services.AddTransient<IInvoiceTextExtractor, InvoiceTextExtractor>();
+		services.AddTransient<IInvoiceProcessRunner, InvoiceProcessRunner>();
+		services.AddTransient<IInvoiceParser, InvoiceParser>();
+		services.AddScoped<IInvoiceImportRepository, InvoiceImportRepository>();
 		services.AddTransient<IInvoiceNumberService, InvoiceNumberService>();
 		services.AddTransient<IReportsService, ReportsService>();
 		services.AddTransient<IHomeSlideshowService, HomeSlideshowService>();
