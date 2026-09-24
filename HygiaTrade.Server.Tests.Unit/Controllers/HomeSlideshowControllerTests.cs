@@ -1,5 +1,6 @@
 using HygiaTrade.API.Controllers;
 using HygiaTrade.API.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 

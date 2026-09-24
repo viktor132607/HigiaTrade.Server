@@ -1,5 +1,7 @@
 using Moq;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
+using HygiaTrade.Data;
 using HygiaTrade.Common.Options;
 using HygiaTrade.Common.Requests.Order;
 using HygiaTrade.Common.Responses.Order;
@@ -30,6 +32,7 @@ namespace HygiaTrade.Tests.Unit.Services
         private readonly Mock<IUserRepository> userRepositoryMock;
         private readonly Mock<IEmailNotificationService> emailNotificationServiceMock;
         private readonly OrderService orderService;
+        private readonly ApplicationDbContext dbContext;
 
         public OrderServiceTests()
         {
@@ -39,6 +42,11 @@ namespace HygiaTrade.Tests.Unit.Services
             orderItemRepositoryMock = new();
             userRepositoryMock = new();
             emailNotificationServiceMock = new();
+            DbContextOptions<ApplicationDbContext> dbOptions =
+                new DbContextOptionsBuilder<ApplicationDbContext>()
+                    .UseInMemoryDatabase($"OrderServiceTests-{Guid.NewGuid():N}")
+                    .Options;
+            dbContext = new ApplicationDbContext(dbOptions);
             orderService = new(
                 orderRepositoryMock.Object,
                 productRepositoryMock.Object,
@@ -46,7 +54,8 @@ namespace HygiaTrade.Tests.Unit.Services
                 orderItemRepositoryMock.Object,
                 userRepositoryMock.Object,
                 emailNotificationServiceMock.Object,
-                Options.Create(new PaymentOptions()));
+                Options.Create(new PaymentOptions()),
+                dbContext);
         }
 
         [Fact]
