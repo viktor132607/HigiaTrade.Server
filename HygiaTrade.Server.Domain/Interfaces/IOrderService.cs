@@ -11,6 +11,7 @@ public interface IOrderService
     Task<OrderResponse> AddProductAsync(AddOrderItemRequest product);
     Task<OrderResponse> RemoveProductAsync(RemoveOrderItemRequest product);
     Task<bool> SendCurrentAsync(SendOrderRequest request);
+    Task<Guid> SendGuestAsync(GuestOrderRequest request);
     Task<bool> ChangeStatusAsync(ChangeOrderStatusRequest request);
     Task<Paginated<OrderResponse>> SearchOrdersAsync(SearchOrderRequest request);
 }

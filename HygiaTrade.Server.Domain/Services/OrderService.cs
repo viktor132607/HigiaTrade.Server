@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
 using HygiaTrade.Common.Options;
 using HygiaTrade.Common.Requests.Order;
 using HygiaTrade.Common.Requests.OrderItem;
@@ -8,6 +9,7 @@ using HygiaTrade.Core.Enums;
 using HygiaTrade.Core.Exceptions;
 using HygiaTrade.Core.Pages;
 using HygiaTrade.Core.StaticClasses;
+using HygiaTrade.Data;
 using HygiaTrade.Data.Entities;
 using HygiaTrade.Data.Interfaces;
 using HygiaTrade.Data.PaginationAndFiltering;
@@ -23,7 +25,8 @@ public class OrderService(
     IOrderItemRepository orderItemRepository,
     IUserRepository userRepository,
     IEmailNotificationService emailNotificationService,
-    IOptions<PaymentOptions> paymentOptions) : IOrderService
+    IOptions<PaymentOptions> paymentOptions,
+    ApplicationDbContext dbContext) : IOrderService
 {
     private readonly PaymentOptions _paymentOptions = paymentOptions.Value;
 
@@ -250,6 +253,105 @@ public class OrderService(
         }
 
         return true;
+    }
+
+    public async Task<Guid> SendGuestAsync(GuestOrderRequest request)
+    {
+        if (!request.ConsentAccepted)
+        {
+            throw new AppException("Consent is required to place an order.")
+                .SetStatusCode(400);
+        }
+
+        if (request.Items.Count == 0)
+        {
+            throw new AppException("Cart is empty.")
+                .SetStatusCode(400);
+        }
+
+        List<Guid> productIds = request.Items
+            .Select(item => item.ProductId)
+            .Distinct()
+            .ToList();
+
+        Dictionary<Guid, Product> products = await dbContext.Products
+            .Where(product =>
+                productIds.Contains(product.Id) &&
+                product.IsActive &&
+                !product.IsDeleted)
+            .ToDictionaryAsync(product => product.Id);
+
+        if (products.Count != productIds.Count)
+        {
+            throw new AppException("One or more products are no longer available.")
+                .SetStatusCode(409);
+        }
+
+        Order order = new()
+        {
+            GuestEmail = request.Email.Trim(),
+            Names = request.Names.Trim(),
+            PostalCode = request.PostalCode.Trim(),
+            Country = request.Country.Trim(),
+            City = request.City.Trim(),
+            Address = request.Address.Trim(),
+            Phone = request.Phone.Trim(),
+            Status = OrderStatus.PendingVerification
+        };
+
+        foreach (var requestedItem in request.Items)
+        {
+            Product product = products[requestedItem.ProductId];
+
+            if (requestedItem.Quantity < 1 ||
+                product.Quantity < requestedItem.Quantity)
+            {
+                throw new AppException(
+                        $"Insufficient stock for '{product.Title}'.")
+                    .SetStatusCode(409);
+            }
+
+            ProductPriceBreakdown pricing =
+                ProductPricingCalculator.Calculate(
+                    product,
+                    requestedItem.Quantity);
+
+            decimal totalInclVat =
+                ProductPricingCalculator.RoundMoney(
+                    pricing.UnitPriceInclVat *
+                    requestedItem.Quantity);
+
+            decimal totalExclVat =
+                ProductPricingCalculator.GrossToNet(
+                    totalInclVat,
+                    pricing.VatRate);
+
+            order.Items.Add(new OrderItem
+            {
+                ProductId = product.Id,
+                Quantity = requestedItem.Quantity,
+                SinglePrice = pricing.UnitPriceInclVat,
+                TotalPrice = totalInclVat,
+                SinglePriceExclVat = pricing.UnitPriceExclVat,
+                TotalPriceExclVat = totalExclVat,
+                VatAmount = ProductPricingCalculator.RoundMoney(
+                    totalInclVat - totalExclVat),
+                VatRate = pricing.VatRate,
+                PricingTier = pricing.PricingTier,
+                Title = product.Title,
+                PrimaryImageUri = product.MainImageUrl
+            });
+
+            product.Quantity -=
+                (uint)requestedItem.Quantity;
+        }
+
+        UpdateOrderPrices(order);
+
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync();
+
+        return order.Id;
     }
 
     private static void ApplyCurrentPricing(OrderItem item, Product product, int quantity)
