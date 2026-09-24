@@ -80,8 +80,8 @@ public sealed class DistributionRouteHttpServicesTests
         Assert.Equal("city", result.Precision);
         Assert.Equal(2, calls);
         Assert.Contains(
-            Uri.EscapeDataString("Русе, България"),
-            urls[1]);
+            "Русе, България",
+            Uri.UnescapeDataString(urls[1]));
     }
 
     [Fact]
