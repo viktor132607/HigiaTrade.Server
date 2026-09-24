@@ -227,7 +227,7 @@ public sealed class InvoiceParserTests
     }
 
     [Fact]
-    public void Parse_UsesMatchedTitle_WhenExtractedNameIsTooShort()
+    public void Parse_FiltersMatchedTitle_WhenNameRemainsTooShort()
     {
         Guid productId = Guid.NewGuid();
 
@@ -238,9 +238,7 @@ public sealed class InvoiceParserTests
                 new InvoiceCatalogProduct(productId, "AB")
             });
 
-        var item = Assert.Single(result.Items);
-        Assert.Equal("AB", item.RawName);
-        Assert.Equal(productId, item.MatchedProductId);
+        Assert.Empty(result.Items);
     }
 
     [Fact]
