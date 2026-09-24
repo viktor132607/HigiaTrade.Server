@@ -83,12 +83,16 @@ public sealed class DistributionRouteServiceTests
             result.Depot.Name);
     }
 
-    [Fact]
-    public async Task OptimizeAsync_RejectsMissingDistributor()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task OptimizeAsync_RejectsMissingDistributor(
+        string? distributorName)
     {
         var request = new CreateDistributionRouteRequest
         {
-            DistributorName = " ",
+            DistributorName = distributorName,
             OrderIds = [Guid.NewGuid()]
         };
 
@@ -483,6 +487,16 @@ public sealed class DistributionRouteServiceTests
                     CancellationToken.None));
 
         Assert.Equal(404, exception.StatusCode);
+    }
+
+    [Fact]
+    public async Task DistributionRouteDelay_CompletesZeroDelay()
+    {
+        var actualDelay = new DistributionRouteDelay();
+
+        await actualDelay.DelayAsync(
+            TimeSpan.Zero,
+            CancellationToken.None);
     }
 
     private void SetupEmptyStore() =>

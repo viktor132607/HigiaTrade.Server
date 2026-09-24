@@ -130,10 +130,11 @@ public sealed class InvoiceImportServiceTests
     }
 
     [Theory]
+    [InlineData(null, 400, "Invoice number is required before importing stock.")]
     [InlineData("", 400, "Invoice number is required before importing stock.")]
     [InlineData("   ", 400, "Invoice number is required before importing stock.")]
     public async Task CommitAsync_RejectsMissingInvoiceNumber(
-        string invoiceNumber,
+        string? invoiceNumber,
         int statusCode,
         string message)
     {

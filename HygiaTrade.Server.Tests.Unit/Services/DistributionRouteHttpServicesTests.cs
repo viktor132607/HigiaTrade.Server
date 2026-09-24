@@ -85,6 +85,91 @@ public sealed class DistributionRouteHttpServicesTests
     }
 
     [Fact]
+    public async Task Geocoder_UsesExplicitCountryOnCityFallback()
+    {
+        int calls = 0;
+        string? secondUrl = null;
+
+        HttpClient client = CreateClient(message =>
+        {
+            calls++;
+
+            if (calls == 2)
+            {
+                secondUrl = message.RequestUri!.ToString();
+            }
+
+            return calls == 1
+                ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                : JsonResponse(
+                    """
+                    [{"lat":"43.84","lon":"25.96"}]
+                    """);
+        });
+
+        DistributionRouteGeocoder geocoder =
+            CreateGeocoder(client);
+
+        DistributionGeoPoint? result =
+            await geocoder.GeocodeOrderAsync(
+                new Order
+                {
+                    Address = "Unknown street",
+                    City = "Русе",
+                    Country = "Bulgaria"
+                },
+                CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Contains(
+            "Русе, Bulgaria",
+            Uri.UnescapeDataString(secondUrl!));
+    }
+
+    [Fact]
+    public async Task Geocoder_ReturnsNull_WhenResultPayloadIsNull()
+    {
+        HttpClient client = CreateClient(_ =>
+            JsonResponse("null"));
+
+        DistributionRouteGeocoder geocoder =
+            CreateGeocoder(client);
+
+        DistributionGeoPoint? result =
+            await geocoder.GeocodeOrderAsync(
+                new Order
+                {
+                    Address = "Unknown"
+                },
+                CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task Geocoder_ReturnsNull_WhenLongitudeIsInvalid()
+    {
+        HttpClient client = CreateClient(_ =>
+            JsonResponse(
+                """
+                [{"lat":"43.84","lon":"bad"}]
+                """));
+
+        DistributionRouteGeocoder geocoder =
+            CreateGeocoder(client);
+
+        DistributionGeoPoint? result =
+            await geocoder.GeocodeOrderAsync(
+                new Order
+                {
+                    Address = "Unknown"
+                },
+                CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public async Task Geocoder_ReturnsNull_WhenCoordinatesAreInvalidAndCityMissing()
     {
         HttpClient client = CreateClient(_ =>
@@ -210,6 +295,39 @@ public sealed class DistributionRouteHttpServicesTests
                 JsonResponse(
                     """
                     {"routes":[]}
+                    """)));
+
+        DistributionRouteSummary? result =
+            await router.GetSummaryAsync(
+                [new DistributionRouteStopDto()],
+                CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task RoadRouter_ReturnsNull_WhenPayloadIsNull()
+    {
+        DistributionRoadRouter router =
+            CreateRouter(CreateClient(_ =>
+                JsonResponse("null")));
+
+        DistributionRouteSummary? result =
+            await router.GetSummaryAsync(
+                [new DistributionRouteStopDto()],
+                CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task RoadRouter_ReturnsNull_WhenRoutesAreNull()
+    {
+        DistributionRoadRouter router =
+            CreateRouter(CreateClient(_ =>
+                JsonResponse(
+                    """
+                    {"routes":null}
                     """)));
 
         DistributionRouteSummary? result =

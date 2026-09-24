@@ -75,6 +75,26 @@ public sealed class DistributionRouteOptimizerTests
     }
 
     [Fact]
+    public void Optimize_AppliesTwoOpt_WhenItImprovesRoute()
+    {
+        var input = new[]
+        {
+            Located(43.63112741666328, 26.001419780244813),
+            Located(43.97670417002617, 25.704586660430223),
+            Located(43.97581761952214, 26.346670232016123),
+            Located(43.905531786272654, 25.596879390250535)
+        };
+
+        IReadOnlyList<LocatedDistributionOrder> result =
+            optimizer.Optimize(input);
+
+        Assert.Equal(
+            43.97670417002617,
+            result[0].Point.Latitude,
+            10);
+    }
+
+    [Fact]
     public void CalculateFallbackSummary_ReturnsZero_ForNoStops()
     {
         DistributionRouteSummary result =
