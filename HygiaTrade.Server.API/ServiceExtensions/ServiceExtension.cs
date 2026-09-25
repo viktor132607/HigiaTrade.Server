@@ -23,6 +23,12 @@ public static class ServiceExtension
 		services.AddTransient<IUserService, UserService>();
 		services.AddTransient<ICategoryService, CategoryService>();
 		services.AddTransient<IBrandService, BrandService>();
+		services.AddTransient<IBrandReadService, BrandReadService>();
+		services.AddTransient<IBrandMutationService, BrandMutationService>();
+		services.AddScoped<IBrandRepository, BrandRepository>();
+		services.AddSingleton<IBrandPolicy, BrandPolicy>();
+		services.AddSingleton<IBrandMapper, BrandMapper>();
+		services.AddSingleton<IBrandClock, BrandClock>();
 		services.AddTransient<IContactService, ContactService>();
 		services.AddTransient<IDistributionRouteService, DistributionRouteService>();
 		services.AddScoped<IDistributionRouteRepository, DistributionRouteRepository>();
