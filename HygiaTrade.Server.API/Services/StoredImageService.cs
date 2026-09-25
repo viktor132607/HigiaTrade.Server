@@ -1,6 +1,4 @@
-using HygiaTrade.Data;
 using HygiaTrade.Data.Entities;
-using Microsoft.EntityFrameworkCore;
 
 namespace HygiaTrade.API.Services;
 
@@ -33,47 +31,16 @@ public sealed class StoredImageServiceException(
 }
 
 public sealed class StoredImageService(
-    ApplicationDbContext db) : IStoredImageService
+    IStoredImagePolicy policy,
+    IStoredImageRepository repository)
+    : IStoredImageService
 {
-    private const long MaxImageSize =
-        10 * 1024 * 1024;
-
-    private static readonly HashSet<string>
-        AllowedContentTypes =
-        [
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/gif"
-        ];
-
     public async Task<StoredImageUploadResult> UploadAsync(
         IFormFile file,
         CancellationToken cancellationToken)
     {
-        if (file.Length == 0)
-        {
-            throw new StoredImageServiceException(
-                StatusCodes.Status400BadRequest,
-                "Choose an image to upload.");
-        }
-
-        if (file.Length > MaxImageSize)
-        {
-            throw new StoredImageServiceException(
-                StatusCodes.Status400BadRequest,
-                "Image size cannot exceed 10 MB.");
-        }
-
-        string contentType =
-            file.ContentType.ToLowerInvariant();
-
-        if (!AllowedContentTypes.Contains(contentType))
-        {
-            throw new StoredImageServiceException(
-                StatusCodes.Status400BadRequest,
-                "Only JPEG, PNG, WEBP and GIF images are supported.");
-        }
+        StoredImageUploadDescriptor descriptor =
+            policy.Validate(file);
 
         await using MemoryStream stream = new();
 
@@ -81,22 +48,14 @@ public sealed class StoredImageService(
             stream,
             cancellationToken);
 
-        StoredImage storedImage = new()
-        {
-            FileName =
-                Path.GetFileName(file.FileName),
+        byte[] data = stream.ToArray();
 
-            ContentType =
-                contentType,
-
-            Data =
-                stream.ToArray()
-        };
-
-        db.StoredImages.Add(storedImage);
-
-        await db.SaveChangesAsync(
-            cancellationToken);
+        StoredImage storedImage =
+            await repository.StoreAsync(
+                descriptor.FileName,
+                descriptor.ContentType,
+                data,
+                cancellationToken);
 
         return new StoredImageUploadResult(
             storedImage.Id,
@@ -109,12 +68,9 @@ public sealed class StoredImageService(
         Guid id,
         CancellationToken cancellationToken)
     {
-        StoredImage? image = await db.StoredImages
-            .AsNoTracking()
-            .FirstOrDefaultAsync(
-                item =>
-                    item.Id == id &&
-                    !item.IsDeleted,
+        StoredImage? image =
+            await repository.GetAsync(
+                id,
                 cancellationToken);
 
         return image is null

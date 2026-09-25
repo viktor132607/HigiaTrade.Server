@@ -67,6 +67,8 @@ public static class ServiceExtension
 		services.AddSingleton<IInventoryRequestValidator, InventoryRequestValidator>();
 		services.AddSingleton<IInventoryClock, InventoryClock>();
 		services.AddTransient<IStoredImageService, StoredImageService>();
+		services.AddSingleton<IStoredImagePolicy, StoredImagePolicy>();
+		services.AddScoped<IStoredImageRepository, StoredImageRepository>();
 		services.AddTransient<ITranslationService, TranslationService>();
 		services.AddSingleton<ITranslationRequestPolicy, TranslationRequestPolicy>();
 		services.AddTransient<IDeepLTranslationGateway, DeepLTranslationGateway>();
