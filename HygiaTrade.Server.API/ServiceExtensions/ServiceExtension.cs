@@ -39,6 +39,11 @@ public static class ServiceExtension
 		services.AddTransient<IStoredImageService, StoredImageService>();
 		services.AddTransient<ITranslationService, TranslationService>();
 		services.AddTransient<IProductService, ProductService>();
+		services.AddTransient<IProductReadService, ProductReadService>();
+		services.AddTransient<IProductMutationService, ProductMutationService>();
+		services.AddTransient<IProductSearchService, ProductSearchService>();
+		services.AddTransient<IProductImageService, ProductImageService>();
+		services.AddTransient<IProductPricingPolicy, ProductPricingPolicy>();
 		services.AddTransient<IWishlistService, WishlistService>();
 		services.AddTransient<IReviewService, ReviewService>();
 		services.AddTransient<IOrderService, OrderService>();
