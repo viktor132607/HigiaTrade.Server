@@ -62,7 +62,9 @@ public static class ServiceExtension
 
 		services.AddTransient<ConsoleEmailNotificationService>();
 
-		services.AddHttpClient<ResendEmailNotificationService>();
+		services.AddHttpClient<IResendEmailTransport, ResendEmailTransport>();
+		services.AddTransient<IEmailNotificationTemplateBuilder, EmailNotificationTemplateBuilder>();
+		services.AddTransient<ResendEmailNotificationService>();
 
 		services.AddTransient<IEmailNotificationService>(
 			serviceProvider =>
