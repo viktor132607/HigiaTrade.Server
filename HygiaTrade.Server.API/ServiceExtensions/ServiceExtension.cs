@@ -21,6 +21,9 @@ public static class ServiceExtension
 		// SERVICES
 		services.AddTransient<IAuthService, AuthService>();
 		services.AddTransient<IUserService, UserService>();
+		services.AddTransient<IUserCurrentUserResolver, UserCurrentUserResolver>();
+		services.AddSingleton<IUserMapper, UserMapper>();
+		services.AddSingleton<IUserMutationFactory, UserMutationFactory>();
 		services.AddTransient<ICategoryService, CategoryService>();
 		services.AddTransient<IBrandService, BrandService>();
 		services.AddTransient<IBrandReadService, BrandReadService>();

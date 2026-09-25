@@ -8,146 +8,116 @@ using HygiaTrade.Domain.Interfaces;
 
 namespace HygiaTrade.Domain.Services;
 
-public class UserService(IUserRepository userRepository, IAuthService authService) : IUserService
+public sealed class UserService(
+    IUserRepository userRepository,
+    IUserCurrentUserResolver currentUserResolver,
+    IUserMapper mapper,
+    IUserMutationFactory mutationFactory)
+    : IUserService
 {
     public async Task<IEnumerable<UserResponse>?> GetAsync()
     {
-        IEnumerable<User> users = (await userRepository.GetAllAsync())
-            .OrderByDescending(user => user.CreatedOn);
+        IEnumerable<User> users =
+            (await userRepository.GetAllAsync())
+                .OrderByDescending(user =>
+                    user.CreatedOn);
 
-        return users.Select(MapUser);
+        return users.Select(mapper.ToResponse);
     }
 
     public async Task<UserResponse?> GetByIdAsync(Guid id)
     {
-        User? user = await userRepository.GetByIdAsync(id);
-        if (user == null)
-        {
-            throw new AppException("User not found.").SetStatusCode(404);
-        }
+        User user =
+            await GetRequiredUserAsync(id);
 
-        return MapUser(user);
+        return mapper.ToResponse(user);
     }
 
     public async Task<UserResponse?> GetCurrentUserAsync()
     {
-        string? currentUserId = await authService.GetCurrentUserId();
-        if (string.IsNullOrWhiteSpace(currentUserId))
-        {
-            throw new AppException("Unauthorized").SetStatusCode(401);
-        }
+        Guid userId =
+            await currentUserResolver.GetCurrentUserIdAsync();
 
-        return await GetByIdAsync(Guid.Parse(currentUserId));
+        return await GetByIdAsync(userId);
     }
 
-    public async Task<UserResponse?> UpdateCurrentUserAsync(UpdateCurrentUserRequest request)
+    public async Task<UserResponse?> UpdateCurrentUserAsync(
+        UpdateCurrentUserRequest request)
     {
-        string? currentUserId = await authService.GetCurrentUserId();
-        if (string.IsNullOrWhiteSpace(currentUserId))
-        {
-            throw new AppException("Unauthorized").SetStatusCode(401);
-        }
+        Guid userId =
+            await currentUserResolver.GetCurrentUserIdAsync();
 
-        UpdateUserRequest updateRequest = new()
-        {
-            Id = Guid.Parse(currentUserId),
-            Email = request.Email,
-            Names = request.Names,
-            Phone = request.Phone
-        };
+        UpdateUserRequest updateRequest =
+            mutationFactory.CreateCurrentUserUpdate(
+                userId,
+                request);
 
         return await UpdateAsync(updateRequest);
     }
 
-    public async Task<UserResponse?> UpdateAsync(UpdateUserRequest request)
+    public async Task<UserResponse?> UpdateAsync(
+        UpdateUserRequest request)
     {
-        User? userBeforeUpdate = await userRepository.GetByIdAsync(request.Id);
-        if (userBeforeUpdate == null)
+        User existingUser =
+            await GetRequiredUserAsync(request.Id);
+
+        User updatePayload =
+            mutationFactory.CreateProfileUpdate(
+                existingUser,
+                request);
+
+        User? updatedUser =
+            await userRepository.UpdateAsync(
+                updatePayload);
+
+        if (updatedUser is null)
         {
-            throw new AppException("User not found.").SetStatusCode(404);
+            throw UserErrors.NotFound();
         }
 
-        User updatedUserPayload = new()
-        {
-            Id = request.Id,
-            CreatedOn = userBeforeUpdate.CreatedOn,
-            ModifiedOn = userBeforeUpdate.ModifiedOn,
-            Email = request.Email,
-            Names = request.Names,
-            Phone = request.Phone,
-            PasswordHash = userBeforeUpdate.PasswordHash,
-            Role = userBeforeUpdate.Role,
-            RefreshToken = userBeforeUpdate.RefreshToken,
-            RefreshTokenExpiryTime = userBeforeUpdate.RefreshTokenExpiryTime
-        };
-
-        User? updatedUser = await userRepository.UpdateAsync(updatedUserPayload);
-        if (updatedUser == null)
-        {
-            throw new AppException("User not found.").SetStatusCode(404);
-        }
-
-        return MapUser(updatedUser);
+        return mapper.ToResponse(updatedUser);
     }
 
     public async Task<bool> DeleteAsync(Guid id)
     {
-        UserResponse user = (await GetByIdAsync(id))!;
+        await GetRequiredUserAsync(id);
 
-        if (!await userRepository.DeleteAsync(user.Id))
-        {
-            return false;
-        }
-
-        return true;
+        return await userRepository.DeleteAsync(id);
     }
 
-    public Task<bool> PromoteToAdminAsync(RoleChangeRequest request)
+    public Task<bool> PromoteToAdminAsync(
+        RoleChangeRequest request) =>
+        ChangeRoleAsync(
+            request,
+            Roles.Admin);
+
+    public Task<bool> DemoteToRegisteredCustomerAsync(
+        RoleChangeRequest request) =>
+        ChangeRoleAsync(
+            request,
+            Roles.RegisteredCustomer);
+
+    private async Task<bool> ChangeRoleAsync(
+        RoleChangeRequest request,
+        string toRole)
     {
-        return ChangeRoleAsync(request, Roles.Admin);
+        User existingUser =
+            await GetRequiredUserAsync(
+                request.UserId);
+
+        User updatePayload =
+            mutationFactory.CreateRoleUpdate(
+                existingUser,
+                toRole);
+
+        User? updatedUser =
+            await userRepository.UpdateAsync(
+                updatePayload);
+
+        return updatedUser is not null;
     }
 
-    public Task<bool> DemoteToRegisteredCustomerAsync(RoleChangeRequest request)
-    {
-        return ChangeRoleAsync(request, Roles.RegisteredCustomer);
-    }
-
-    private async Task<bool> ChangeRoleAsync(RoleChangeRequest request, string toRole)
-    {
-        User? userBeforeUpdate = await userRepository.GetByIdAsync(request.UserId);
-
-        if (userBeforeUpdate == null)
-        {
-            throw new AppException("User not found.").SetStatusCode(404);
-        }
-
-        User updatedUserPayload = new()
-        {
-            Id = request.UserId,
-            CreatedOn = userBeforeUpdate.CreatedOn,
-            ModifiedOn = userBeforeUpdate.ModifiedOn,
-            Email = userBeforeUpdate.Email,
-            Names = userBeforeUpdate.Names,
-            Phone = userBeforeUpdate.Phone,
-            PasswordHash = userBeforeUpdate.PasswordHash,
-            Role = toRole,
-            RefreshToken = userBeforeUpdate.RefreshToken,
-            RefreshTokenExpiryTime = userBeforeUpdate.RefreshTokenExpiryTime
-        };
-
-        User? updatedUser = await userRepository.UpdateAsync(updatedUserPayload);
-        return updatedUser != null;
-    }
-
-    private static UserResponse MapUser(User user)
-    {
-        return new UserResponse
-        {
-            Id = user.Id,
-            Email = user.Email,
-            Names = user.Names,
-            Phone = user.Phone,
-            Role = user.Role,
-        };
-    }
+    private async Task<User> GetRequiredUserAsync(Guid id) =>
+        await userRepository.GetByIdAsync(id)
+        ?? throw UserErrors.NotFound();
 }
