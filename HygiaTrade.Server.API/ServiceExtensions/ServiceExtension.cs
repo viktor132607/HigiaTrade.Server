@@ -32,6 +32,10 @@ public static class ServiceExtension
 		services.AddScoped<IInvoiceImportRepository, InvoiceImportRepository>();
 		services.AddTransient<IInvoiceNumberService, InvoiceNumberService>();
 		services.AddTransient<IReportsService, ReportsService>();
+		services.AddSingleton<IReportsRequestNormalizer, ReportsRequestNormalizer>();
+		services.AddScoped<IReportsDataSource, ReportsDataSource>();
+		services.AddScoped<IStockEntryReportReader, StockEntryReportReader>();
+		services.AddSingleton<IAdminReportBuilder, AdminReportBuilder>();
 		services.AddTransient<IHomeSlideshowService, HomeSlideshowService>();
 		services.AddScoped<IHomeSlideshowStore, HomeSlideshowStore>();
 		services.AddSingleton<IHomeSlideshowPayloadNormalizer, HomeSlideshowPayloadNormalizer>();
