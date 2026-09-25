@@ -1,3 +1,4 @@
+using HygiaTrade.API.Controllers;
 using HygiaTrade.API.Services;
 
 namespace HygiaTrade.Server.Tests.Unit.Services;
