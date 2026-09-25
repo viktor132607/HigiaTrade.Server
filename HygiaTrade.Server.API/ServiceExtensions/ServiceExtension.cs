@@ -47,6 +47,9 @@ public static class ServiceExtension
 		services.AddSingleton<IHomeSlideshowDefaults, HomeSlideshowDefaults>();
 		services.AddTransient<IProductImagePresentationService, ProductImagePresentationService>();
 		services.AddTransient<INewProductsService, NewProductsService>();
+		services.AddScoped<INewProductStatusRepository, NewProductStatusRepository>();
+		services.AddSingleton<INewProductsPolicy, NewProductsPolicy>();
+		services.AddSingleton<INewProductsClock, NewProductsClock>();
 		services.AddTransient<IInventoryService, InventoryService>();
 		services.AddTransient<IStoredImageService, StoredImageService>();
 		services.AddTransient<ITranslationService, TranslationService>();
