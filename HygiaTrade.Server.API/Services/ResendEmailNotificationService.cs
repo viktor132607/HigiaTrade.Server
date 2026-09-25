@@ -98,6 +98,8 @@ public sealed class ResendEmailNotificationService(
 		string bankTransferHtml = paymentMethod.Equals(
 			"bank-transfer",
 			StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(_paymentOptions.BankTransfer.Iban)
+            && !_paymentOptions.BankTransfer.Iban.Contains("DEMO", StringComparison.OrdinalIgnoreCase)
 			? $$"""
                 <div style="margin-top:24px;padding:18px;background:#f4f6f8;border:1px solid #d6dde3;">
                   <strong>Данни за банков превод</strong>

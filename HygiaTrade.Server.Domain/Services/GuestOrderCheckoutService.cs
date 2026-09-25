@@ -32,6 +32,8 @@ public sealed class GuestOrderCheckoutService(
                 .SetStatusCode(400);
         }
 
+        CheckoutPolicy.Validate(request);
+
         List<Guid> productIds = request.Items
             .Select(item => item.ProductId)
             .Distinct()
@@ -59,6 +61,8 @@ public sealed class GuestOrderCheckoutService(
             Phone = request.Phone.Trim(),
             Status = OrderStatus.PendingVerification
         };
+
+        CheckoutPolicy.Apply(order, request);
 
         foreach (GuestOrderItemRequest requestedItem
                  in request.Items)
@@ -97,6 +101,7 @@ public sealed class GuestOrderCheckoutService(
         }
 
         pricingService.UpdateOrderPrices(order);
+        CheckoutPolicy.EnsureMinimum(order.OrderTotalPrice);
 
         return await guestOrderRepository.SaveAsync(
             order,

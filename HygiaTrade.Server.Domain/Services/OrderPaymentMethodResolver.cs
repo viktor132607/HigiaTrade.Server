@@ -22,7 +22,7 @@ public sealed class OrderPaymentMethodResolver(
             string.IsNullOrWhiteSpace(paymentMethod)
                 ? options.SupportedMethods
                     .FirstOrDefault() ??
-                  "online-card"
+                  "cash-on-delivery"
                 : paymentMethod.Trim();
 
         if (!options.SupportedMethods.Contains(

@@ -60,7 +60,7 @@ public sealed class OrderCartService(
             await productRepository.GetByIdAsync(
                 request.ProductId);
 
-        if (product is null)
+        if (product is null || !product.IsActive || product.IsDeleted)
         {
             throw new AppException("Product not found")
                 .SetStatusCode(404);
@@ -171,7 +171,7 @@ public sealed class OrderCartService(
                 await productRepository.GetByIdAsync(
                     item.ProductId);
 
-            if (product is null)
+            if (product is null || !product.IsActive || product.IsDeleted)
             {
                 throw new AppException("Product not found")
                     .SetStatusCode(404);

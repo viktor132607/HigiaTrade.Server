@@ -24,7 +24,7 @@ public sealed class OrderStockService(
                 await productRepository.GetByIdAsync(
                     item.ProductId);
 
-            if (product is null ||
+            if (product is null || !product.IsActive || product.IsDeleted ||
                 product.Quantity < item.Quantity)
             {
                 throw new AppException(

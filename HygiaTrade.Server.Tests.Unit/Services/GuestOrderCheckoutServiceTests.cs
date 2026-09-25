@@ -12,8 +12,12 @@ public sealed class GuestOrderCheckoutServiceTests
     private readonly Mock<IGuestOrderRepository> repository = new();
     private readonly Mock<IOrderPricingService> pricing = new();
 
-    private GuestOrderCheckoutService CreateService() =>
-        new(repository.Object, pricing.Object);
+    private GuestOrderCheckoutService CreateService()
+    {
+        pricing.Setup(service => service.UpdateOrderPrices(It.IsAny<Order>()))
+            .Callback<Order>(order => order.OrderTotalPrice = 50m);
+        return new(repository.Object, pricing.Object);
+    }
 
     [Fact]
     public async Task SendAsync_RequiresConsent()
@@ -174,11 +178,28 @@ public sealed class GuestOrderCheckoutServiceTests
         Assert.Equal((uint)3, product.Quantity);
     }
 
+    [Fact]
+    public async Task SendAsync_RejectsBelowMinimumWithoutPersistence()
+    {
+        var request = Request(); request.ConsentAccepted = true;
+        Guid id = request.Items[0].ProductId;
+        repository.Setup(item => item.GetAvailableProductsAsync(It.IsAny<IReadOnlyCollection<Guid>>()))
+            .ReturnsAsync(new Dictionary<Guid, Product> { [id] = Product(id, 5) });
+        // Real service receives the authoritative repriced total, never a client-supplied amount.
+        pricing.Setup(service => service.UpdateOrderPrices(It.IsAny<Order>()))
+            .Callback<Order>(order => order.OrderTotalPrice = 49.99m);
+        var service = new GuestOrderCheckoutService(repository.Object, pricing.Object);
+        await Assert.ThrowsAsync<AppException>(() => service.SendAsync(request));
+        repository.Verify(item => item.SaveAsync(It.IsAny<Order>(), It.IsAny<IReadOnlyCollection<Product>>()), Times.Never);
+    }
+
     private static GuestOrderRequest Request(
         Guid? productId = null,
         int quantity = 1) =>
         new()
         {
+            PaymentMethod = "cash-on-delivery",
+            DeliveryMethod = "regional-delivery",
             Names = "Guest",
             Email = "guest@example.com",
             PostalCode = "7000",

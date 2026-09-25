@@ -9,6 +9,15 @@ public static class OrderMapping
     public static OrderResponse ToResponse(Order order) =>
         new()
         {
+            DeliveryRegion = order.DeliveryRegion,
+            PaymentMethod = order.PaymentMethod,
+            DeliveryMethod = order.DeliveryMethod,
+            InvoiceRequested = order.InvoiceRequested,
+            InvoiceCompanyName = order.InvoiceCompanyName,
+            InvoiceCompanyId = order.InvoiceCompanyId,
+            InvoiceVatId = order.InvoiceVatId,
+            InvoiceAddress = order.InvoiceAddress,
+
             Id = order.Id,
             UserId = order.UserId,
             OrderSubtotalExclVat =

@@ -18,8 +18,7 @@ public sealed class CurrentOrderCheckoutService(
     IUserRepository userRepository,
     IEmailNotificationService emailNotificationService,
     IOrderPricingService pricingService,
-    IOrderStockService stockService,
-    IOrderPaymentMethodResolver paymentMethodResolver)
+    IOrderStockService stockService)
     : ICurrentOrderCheckoutService
 {
     public async Task<bool> SendAsync(
@@ -44,21 +43,17 @@ public sealed class CurrentOrderCheckoutService(
                 .SetStatusCode(400);
         }
 
-        string paymentMethod =
-            paymentMethodResolver.Resolve(
-                request.PaymentMethod);
-
-        string deliveryMethod =
-            string.IsNullOrWhiteSpace(
-                request.DeliveryMethod)
-                ? "standard-courier"
-                : request.DeliveryMethod.Trim();
+        CheckoutPolicy.Validate(request);
+        string paymentMethod = request.PaymentMethod!.Trim();
+        string deliveryMethod = request.DeliveryMethod!.Trim();
 
         await pricingService
             .RefreshCurrentCartPricingAsync(order);
 
+        CheckoutPolicy.EnsureMinimum(order.OrderTotalPrice);
         await stockService
             .EnsureAvailabilityAsync(order);
+        CheckoutPolicy.Apply(order, request);
 
         order.Names = request.Names;
         order.PostalCode = request.PostalCode;

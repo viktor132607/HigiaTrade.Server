@@ -4,13 +4,13 @@ public class PaymentOptions
 {
     public const string SectionName = "Payments";
 
-    public string OnlineProviderName { get; set; } = "DemoSportPay";
+    public string OnlineProviderName { get; set; } = "";
 
     public string OnlinePaymentLabel { get; set; } = "Card payment";
 
     public string[] SupportedMethods { get; set; } =
     [
-        "online-card",
+        "cash-on-delivery",
         "bank-transfer"
     ];
 
@@ -21,11 +21,11 @@ public class BankTransferOptions
 {
     public string Beneficiary { get; set; } = "HygiaTrade Ltd.";
 
-    public string Iban { get; set; } = "BG00DEMO12345678901234";
+    public string Iban { get; set; } = "";
 
-    public string Bic { get; set; } = "DEMOBGSF";
+    public string Bic { get; set; } = "";
 
-    public string BankName { get; set; } = "Demo Bank";
+    public string BankName { get; set; } = "";
 
-    public string ReferencePrefix { get; set; } = "SPORT";
+    public string ReferencePrefix { get; set; } = "HT";
 }

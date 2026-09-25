@@ -17,7 +17,6 @@ public sealed class CurrentOrderCheckoutServiceTests
     private readonly Mock<IEmailNotificationService> email = new();
     private readonly Mock<IOrderPricingService> pricing = new();
     private readonly Mock<IOrderStockService> stock = new();
-    private readonly Mock<IOrderPaymentMethodResolver> payment = new();
 
     private CurrentOrderCheckoutService CreateService() =>
         new(
@@ -26,8 +25,7 @@ public sealed class CurrentOrderCheckoutServiceTests
             users.Object,
             email.Object,
             pricing.Object,
-            stock.Object,
-            payment.Object);
+            stock.Object);
 
     [Fact]
     public async Task SendAsync_Throws404_WhenOrderMissing()
@@ -88,8 +86,8 @@ public sealed class CurrentOrderCheckoutServiceTests
         User user = User(userId);
         var request = Request();
         request.ConsentAccepted = true;
-        request.PaymentMethod = " card ";
-        request.DeliveryMethod = " courier ";
+        request.PaymentMethod = " bank-transfer ";
+        request.DeliveryMethod = " regional-delivery ";
 
         orders
             .Setup(repository => repository.GetByUserIdAsync(userId))
@@ -102,10 +100,6 @@ public sealed class CurrentOrderCheckoutServiceTests
         users
             .Setup(repository => repository.GetByIdAsync(userId))
             .ReturnsAsync(user);
-
-        payment
-            .Setup(service => service.Resolve(" card "))
-            .Returns("card");
 
         bool result =
             await CreateService().SendAsync(request);
@@ -130,19 +124,19 @@ public sealed class CurrentOrderCheckoutServiceTests
             service => service.SendOrderConfirmationAsync(
                 user,
                 order,
-                "card",
-                "courier"),
+                "bank-transfer",
+                "regional-delivery"),
             Times.Once);
     }
 
     [Fact]
-    public async Task SendAsync_UsesDefaultDeliveryAndSkipsEmailWithoutUser()
+    public async Task SendAsync_SkipsEmailWithoutUser()
     {
         Guid userId = SetupUser();
         Order order = OrderWithItem();
         var request = Request();
         request.ConsentAccepted = true;
-        request.DeliveryMethod = " ";
+        request.DeliveryMethod = "regional-delivery";
 
         orders
             .Setup(repository => repository.GetByUserIdAsync(userId))
@@ -156,11 +150,6 @@ public sealed class CurrentOrderCheckoutServiceTests
             .Setup(repository => repository.GetByIdAsync(userId))
             .ReturnsAsync((User?)null);
 
-        payment
-            .Setup(service => service.Resolve(
-                It.IsAny<string?>()))
-            .Returns("online-card");
-
         Assert.True(
             await CreateService().SendAsync(request));
 
@@ -171,6 +160,18 @@ public sealed class CurrentOrderCheckoutServiceTests
                 It.IsAny<string>(),
                 It.IsAny<string>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task SendAsync_RejectsBelowMinimumBeforeSavingOrReducingStock()
+    {
+        Guid userId = SetupUser();
+        var order = OrderWithItem(); order.OrderTotalPrice = 49.99m;
+        orders.Setup(repository => repository.GetByUserIdAsync(userId)).ReturnsAsync(order);
+        var request = Request(); request.ConsentAccepted = true;
+        await Assert.ThrowsAsync<AppException>(() => CreateService().SendAsync(request));
+        orders.Verify(repository => repository.UpdateAsync(It.IsAny<Order>()), Times.Never);
+        stock.Verify(service => service.DecreaseQuantitiesAsync(It.IsAny<Order>()), Times.Never);
     }
 
     private Guid SetupUser()
@@ -187,6 +188,7 @@ public sealed class CurrentOrderCheckoutServiceTests
     private static Order OrderWithItem() =>
         new()
         {
+            OrderTotalPrice = 50m,
             Items =
             [
                 new OrderItem
@@ -204,6 +206,8 @@ public sealed class CurrentOrderCheckoutServiceTests
     private static SendOrderRequest Request() =>
         new()
         {
+            PaymentMethod = "cash-on-delivery",
+            DeliveryMethod = "regional-delivery",
             Names = "User",
             PostalCode = "7000",
             Country = "BG",

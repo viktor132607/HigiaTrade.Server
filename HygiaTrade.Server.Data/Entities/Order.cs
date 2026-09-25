@@ -13,6 +13,15 @@ namespace HygiaTrade.Data.Entities
         public string? City { get; set; }
         public string? Address { get; set; }
         public string? Phone { get; set; }
+        public string? DeliveryRegion { get; set; }
+        public string? PaymentMethod { get; set; }
+        public string? DeliveryMethod { get; set; }
+        public bool InvoiceRequested { get; set; }
+        public string? InvoiceCompanyName { get; set; }
+        public string? InvoiceCompanyId { get; set; }
+        public string? InvoiceVatId { get; set; }
+        public string? InvoiceAddress { get; set; }
+
 
         public decimal OrderSubtotalExclVat { get; set; }
         public decimal OrderVatAmount { get; set; }
