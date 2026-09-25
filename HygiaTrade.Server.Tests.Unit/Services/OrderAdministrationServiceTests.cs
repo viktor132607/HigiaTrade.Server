@@ -138,9 +138,11 @@ public sealed class OrderAdministrationServiceTests
     [Fact]
     public async Task ChangeStatusAsync_SkipsEmail_WhenUserMissing()
     {
+        Guid userId = Guid.NewGuid();
         var order = new Order
         {
             Id = Guid.NewGuid(),
+            UserId = userId,
             Status = OrderStatus.Processing
         };
 
@@ -155,8 +157,7 @@ public sealed class OrderAdministrationServiceTests
             .ReturnsAsync(order);
 
         users
-            .Setup(repository => repository.GetByIdAsync(
-                It.IsAny<Guid?>()))
+            .Setup(repository => repository.GetByIdAsync(userId))
             .ReturnsAsync((User?)null);
 
         Assert.True(
