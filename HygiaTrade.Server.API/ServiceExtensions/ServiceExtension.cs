@@ -51,6 +51,10 @@ public static class ServiceExtension
 		services.AddSingleton<INewProductsPolicy, NewProductsPolicy>();
 		services.AddSingleton<INewProductsClock, NewProductsClock>();
 		services.AddTransient<IInventoryService, InventoryService>();
+		services.AddScoped<IInventoryReader, InventoryReader>();
+		services.AddScoped<IInventoryStockAdder, InventoryStockAdder>();
+		services.AddSingleton<IInventoryRequestValidator, InventoryRequestValidator>();
+		services.AddSingleton<IInventoryClock, InventoryClock>();
 		services.AddTransient<IStoredImageService, StoredImageService>();
 		services.AddTransient<ITranslationService, TranslationService>();
 		services.AddTransient<IProductService, ProductService>();
