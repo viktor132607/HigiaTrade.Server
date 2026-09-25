@@ -42,6 +42,13 @@ public static class ServiceExtension
 		services.AddTransient<IWishlistService, WishlistService>();
 		services.AddTransient<IReviewService, ReviewService>();
 		services.AddTransient<IOrderService, OrderService>();
+		services.AddTransient<IOrderAdministrationService, OrderAdministrationService>();
+		services.AddTransient<IOrderCartService, OrderCartService>();
+		services.AddTransient<ICurrentOrderCheckoutService, CurrentOrderCheckoutService>();
+		services.AddTransient<IGuestOrderCheckoutService, GuestOrderCheckoutService>();
+		services.AddTransient<IOrderPricingService, OrderPricingService>();
+		services.AddTransient<IOrderStockService, OrderStockService>();
+		services.AddTransient<IOrderPaymentMethodResolver, OrderPaymentMethodResolver>();
 		services.AddTransient<IGdprService, GdprService>();
 
 		services.AddSingleton<
@@ -80,6 +87,7 @@ public static class ServiceExtension
 		services.AddScoped<IImageRepository, ImageRepository>();
 		services.AddScoped<IOrderRepository, OrderRepository>();
 		services.AddScoped<IOrderItemRepository, OrderItemRepository>();
+		services.AddScoped<IGuestOrderRepository, GuestOrderRepository>();
 
 		return services;
 	}
