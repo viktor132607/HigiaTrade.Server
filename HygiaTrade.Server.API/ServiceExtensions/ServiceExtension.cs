@@ -80,6 +80,11 @@ public static class ServiceExtension
 		services.AddTransient<IOrderStockService, OrderStockService>();
 		services.AddTransient<IOrderPaymentMethodResolver, OrderPaymentMethodResolver>();
 		services.AddTransient<IGdprService, GdprService>();
+		services.AddTransient<IGdprCurrentUserResolver, GdprCurrentUserResolver>();
+		services.AddScoped<IGdprRepository, GdprRepository>();
+		services.AddSingleton<IGdprExportMapper, GdprExportMapper>();
+		services.AddSingleton<IGdprDataAnonymizer, GdprDataAnonymizer>();
+		services.AddSingleton<IGdprClock, GdprClock>();
 
 		services.AddSingleton<
 			IPasswordResetTokenStore,
