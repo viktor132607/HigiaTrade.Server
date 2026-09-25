@@ -1,177 +1,271 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using HygiaTrade.Common.Requests.Category;
 using HygiaTrade.Common.Responses.Category;
 using HygiaTrade.Core.Exceptions;
-using HygiaTrade.Data;
 using HygiaTrade.Data.Entities;
 using HygiaTrade.Data.Interfaces;
-using HygiaTrade.Data.Repositories;
-using HygiaTrade.Domain.Interfaces;
 using HygiaTrade.Domain.Services;
-using Xunit;
+using Moq;
 
-namespace HygiaTrade.Tests.Unit.Services;
+namespace HygiaTrade.Server.Tests.Unit.Services;
 
-public class CategoryServiceTests
+public sealed class CategoryServiceTests
 {
-    private readonly ICategoryService _categoryService;
-    private readonly ICategoryRepository _categoryRepository;
-    private readonly ApplicationDbContext _dbContext;
+    private readonly Mock<ICategoryRepository> repository = new();
+    private readonly Mock<ICategoryHierarchyPolicy> policy = new();
+    private readonly Mock<ICategoryMapper> mapper = new();
 
-    public CategoryServiceTests()
+    private CategoryService CreateService() =>
+        new(
+            repository.Object,
+            policy.Object,
+            mapper.Object);
+
+    [Fact]
+    public async Task GetAsync_FiltersDeletedSortsRootsFirstThenNameAndMaps()
     {
-        DbContextOptions<ApplicationDbContext> options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
+        Category rootB = CategoryFor("B");
+        Category rootA = CategoryFor("A");
+        Category child = CategoryFor("C");
+        child.ParentCategoryId = rootA.Id;
 
-        _dbContext = new(options);
-        _categoryRepository = new CategoryRepository(_dbContext);
-        _categoryService = new CategoryService(_categoryRepository, new ImageRepository(_dbContext));
-    }
+        Category deleted = CategoryFor("Deleted");
+        deleted.IsDeleted = true;
 
-    private async Task ClearDatabaseAsync()
-    {
-        _dbContext.Categories.RemoveRange(_dbContext.Categories);
-        await _dbContext.SaveChangesAsync();
+        repository
+            .Setup(x => x.GetAllAsync())
+            .ReturnsAsync(
+                [child, rootB, deleted, rootA]);
+
+        IReadOnlyList<Category>? captured = null;
+
+        mapper
+            .Setup(x => x.ToResponses(
+                It.IsAny<IReadOnlyCollection<Category>>()))
+            .Callback<IReadOnlyCollection<Category>>(
+                categories =>
+                    captured = categories.ToList())
+            .Returns([]);
+
+        await CreateService().GetAsync();
+
+        Assert.NotNull(captured);
+
+        Assert.Equal(
+            [rootA.Id, rootB.Id, child.Id],
+            captured!.Select(x => x.Id));
     }
 
     [Fact]
-    public async Task GetAsync_ShouldReturnCategoryResponses_WhenCategoriesExist()
+    public async Task GetByIdAsync_Throws404_WhenCategoryDoesNotExist()
     {
-        await ClearDatabaseAsync();
+        Guid id = Guid.NewGuid();
 
-        Category category1 = new()
-        {
-            Name = "Category 1",
-            ImageUri = "http://example.com/category1.jpg"
-        };
-        Category category2 = new()
-        {
-            Name = "Category 2",
-            ImageUri = "http://example.com/category2.jpg"
-        };
-        await _categoryRepository.AddAsync(category1);
-        await _categoryRepository.AddAsync(category2);
+        repository
+            .Setup(x => x.GetByIdAsync(id))
+            .Returns(new ValueTask<Category?>((Category?)null));
 
-        IEnumerable<CategoryResponse>? result = await _categoryService.GetAsync();
+        AppException ex =
+            await Assert.ThrowsAsync<AppException>(
+                () => CreateService().GetByIdAsync(id));
 
-        Assert.NotNull(result);
-        Assert.Contains(result, r => r.Name == category1.Name);
-        Assert.Contains(result, r => r.Name == category2.Name);
+        Assert.Equal(404, ex.StatusCode);
+        Assert.Equal("Category not found.", ex.Message);
     }
 
     [Fact]
-    public async Task GetByIdAsync_ShouldReturnCategoryResponse_WhenCategoryExists()
+    public async Task GetByIdAsync_MapsCategoryWithActiveCategorySet()
     {
-        await ClearDatabaseAsync();
+        Category category = CategoryFor("Child");
+        Category parent = CategoryFor("Parent");
+        category.ParentCategoryId = parent.Id;
 
-        Category category = new()
-        {
-            Name = "Test Category",
-            ImageUri = "http://example.com/category.jpg"
-        };
-        Category? addedCategory = await _categoryRepository.AddAsync(category);
+        Category deleted = CategoryFor("Deleted");
+        deleted.IsDeleted = true;
 
-        CategoryResponse? result = await _categoryService.GetByIdAsync(addedCategory.Id);
+        repository
+            .Setup(x => x.GetByIdAsync(category.Id))
+            .Returns(new ValueTask<Category?>(category));
 
-        Assert.NotNull(result);
-        Assert.Equal(addedCategory.Name, result.Name);
-        Assert.Equal(addedCategory.ImageUri, result.ImageURI);
+        repository
+            .Setup(x => x.GetAllAsync())
+            .ReturnsAsync([category, parent, deleted]);
+
+        CategoryResponse expected =
+            ResponseFor(category);
+
+        mapper
+            .Setup(x => x.ToResponse(
+                category,
+                It.Is<IReadOnlyCollection<Category>>(
+                    categories =>
+                        categories.Count == 2 &&
+                        categories.Contains(category) &&
+                        categories.Contains(parent))))
+            .Returns(expected);
+
+        CategoryResponse? result =
+            await CreateService().GetByIdAsync(
+                category.Id);
+
+        Assert.Same(expected, result);
     }
 
     [Fact]
-    public async Task CreateAsync_ShouldCreateCategory_WhenValidRequest()
+    public async Task CreateAsync_ValidatesParentTrimsNamePersistsAndMaps()
     {
-        await ClearDatabaseAsync();
+        Guid parentId = Guid.NewGuid();
 
         CreateCategoryRequest request = new()
         {
-            Name = "New Category",
-            ImageURI = "http://example.com/new_category.jpg"
+            Name = "  Child  ",
+            ImageURI = "image",
+            ParentCategoryId = parentId
         };
 
-        CategoryResponse? result = await _categoryService.CreateAsync(request);
+        policy
+            .Setup(x => x.ValidateParentAsync(
+                parentId,
+                null))
+            .ReturnsAsync(parentId);
+
+        Category? captured = null;
+
+        repository
+            .Setup(x => x.AddAsync(
+                It.IsAny<Category>()))
+            .Callback<Category>(
+                category => captured = category)
+            .Returns<Category>(
+                category =>
+                    new ValueTask<Category?>(
+                        category));
+
+        repository
+            .Setup(x => x.GetAllAsync())
+            .ReturnsAsync(
+                () => captured is null
+                    ? []
+                    : [captured]);
+
+        mapper
+            .Setup(x => x.ToResponse(
+                It.IsAny<Category>(),
+                It.IsAny<IReadOnlyCollection<Category>>()))
+            .Returns<Category, IReadOnlyCollection<Category>>(
+                (category, _) =>
+                    ResponseFor(category));
+
+        CategoryResponse? result =
+            await CreateService().CreateAsync(request);
+
+        Assert.NotNull(captured);
+        Assert.Equal("Child", captured!.Name);
+        Assert.Equal("image", captured.ImageUri);
+        Assert.Equal(parentId, captured.ParentCategoryId);
 
         Assert.NotNull(result);
-        Assert.Equal(request.Name, result.Name);
-        Assert.Equal(request.ImageURI, result.ImageURI);
+        Assert.Equal("Child", result!.Name);
     }
 
     [Fact]
-    public async Task UpdateAsync_ShouldUpdateCategory_WhenCategoryExists()
+    public async Task UpdateAsync_UsesValidatedParentAndMutatesExistingEntity()
     {
-        await ClearDatabaseAsync();
+        Category existing = CategoryFor("Old");
 
-        Category category = new()
-        {
-            Name = "Old Category",
-            ImageUri = "http://example.com/old_category.jpg"
-        };
-        Category? addedCategory = await _categoryRepository.AddAsync(category);
+        Guid parentId = Guid.NewGuid();
+
         UpdateCategoryRequest request = new()
         {
-            Id = addedCategory.Id,
-            Name = "Updated Category",
-            ImageURI = "http://example.com/updated_category.jpg"
+            Id = existing.Id,
+            Name = "  New  ",
+            ImageURI = "new-image",
+            ParentCategoryId = parentId
         };
 
-        CategoryResponse? result = await _categoryService.UpdateAsync(request);
+        repository
+            .Setup(x => x.GetByIdAsync(existing.Id))
+            .Returns(new ValueTask<Category?>(existing));
+
+        policy
+            .Setup(x => x.ValidateParentAsync(
+                parentId,
+                existing.Id))
+            .ReturnsAsync(parentId);
+
+        repository
+            .Setup(x => x.UpdateAsync(existing))
+            .Returns(new ValueTask<Category?>(existing));
+
+        repository
+            .Setup(x => x.GetAllAsync())
+            .ReturnsAsync([existing]);
+
+        mapper
+            .Setup(x => x.ToResponse(
+                existing,
+                It.IsAny<IReadOnlyCollection<Category>>()))
+            .Returns(() => ResponseFor(existing));
+
+        CategoryResponse? result =
+            await CreateService().UpdateAsync(request);
+
+        Assert.Equal("New", existing.Name);
+        Assert.Equal("new-image", existing.ImageUri);
+        Assert.Equal(parentId, existing.ParentCategoryId);
 
         Assert.NotNull(result);
-        Assert.Equal(request.Name, result.Name);
-        Assert.Equal(request.ImageURI, result.ImageURI);
+        Assert.Equal("New", result!.Name);
     }
 
-    [Fact]
-    public async Task DeleteAsync_ShouldDeleteCategory_WhenCategoryExists()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DeleteAsync_ValidatesHierarchyAndReturnsRepositoryResult(
+        bool deleteResult)
     {
-        await ClearDatabaseAsync();
+        Category category = CategoryFor("Category");
 
-        Category category = new()
+        repository
+            .Setup(x => x.GetByIdAsync(category.Id))
+            .Returns(new ValueTask<Category?>(category));
+
+        repository
+            .Setup(x => x.GetAllAsync())
+            .ReturnsAsync([category]);
+
+        repository
+            .Setup(x => x.DeleteAsync(category.Id))
+            .ReturnsAsync(deleteResult);
+
+        bool result =
+            await CreateService().DeleteAsync(
+                category.Id);
+
+        Assert.Equal(deleteResult, result);
+
+        policy.Verify(
+            x => x.EnsureCanDelete(
+                category.Id,
+                It.IsAny<IEnumerable<Category>>()),
+            Times.Once);
+    }
+
+    private static Category CategoryFor(
+        string name) =>
+        new()
         {
-            Name = "Category To Delete",
-            ImageUri = "http://example.com/delete_category.jpg"
+            Name = name,
+            ImageUri = null
         };
-        Category? addedCategory = await _categoryRepository.AddAsync(category);
 
-        bool result = await _categoryService.DeleteAsync(addedCategory.Id);
-
-        Assert.True(result);
-        Category? deletedCategory = await _categoryRepository.GetByIdAsync(addedCategory.Id);
-        Assert.Null(deletedCategory);
-    }
-
-    [Fact]
-    public async Task GetByIdAsync_ShouldThrowException_WhenCategoryNotFound()
-    {
-        await ClearDatabaseAsync();
-
-        Guid invalidId = Guid.NewGuid();
-
-        await Assert.ThrowsAsync<AppException>(() => _categoryService.GetByIdAsync(invalidId));
-    }
-
-
-[Fact]
-    public async Task UpdateAsync_ShouldThrowException_WhenCategoryNotFound()
-    {
-        await ClearDatabaseAsync();
-
-        UpdateCategoryRequest request = new() { Id = Guid.NewGuid(), Name = "Updated Category", ImageURI = "http://example.com/updated_category.jpg" };
-
-        await Assert.ThrowsAsync<AppException>(() => _categoryService.UpdateAsync(request));
-    }
-
-    [Fact]
-    public async Task DeleteAsync_ShouldThrowException_WhenCategoryNotFound()
-    {
-        await ClearDatabaseAsync();
-
-        Guid invalidId = Guid.NewGuid();
-
-        await Assert.ThrowsAsync<AppException>(() => _categoryService.DeleteAsync(invalidId));
-    }
+    private static CategoryResponse ResponseFor(
+        Category category) =>
+        new()
+        {
+            Id = category.Id,
+            Name = category.Name,
+            ImageURI = category.ImageUri,
+            ParentCategoryId =
+                category.ParentCategoryId
+        };
 }
