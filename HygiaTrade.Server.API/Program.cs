@@ -110,10 +110,16 @@ builder.Services.AddDbContext<ApplicationDbContext>(
 		options.UseNpgsql(
 			resolvedDatabaseConnection.ConnectionString));
 
-builder.Services.AddSingleton<IDatabaseBackupService>(serviceProvider =>
-	new DatabaseBackupService(
-		resolvedDatabaseConnection.ConnectionString,
-		serviceProvider.GetRequiredService<ILogger<DatabaseBackupService>>()));
+builder.Services.AddSingleton(
+	new DatabaseBackupConnection(
+		resolvedDatabaseConnection.ConnectionString));
+
+builder.Services.AddSingleton<IDatabaseBackupOperationLock, DatabaseBackupOperationLock>();
+builder.Services.AddSingleton<IDatabaseBackupFileStore, DatabaseBackupFileStore>();
+builder.Services.AddSingleton<IDatabaseBackupArchiveValidator, DatabaseBackupArchiveValidator>();
+builder.Services.AddSingleton<IPostgresProcessRunner, PostgresProcessRunner>();
+builder.Services.AddSingleton<IPostgresBackupTool, PostgresBackupTool>();
+builder.Services.AddSingleton<IDatabaseBackupService, DatabaseBackupService>();
 
 builder.Services
 	.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
