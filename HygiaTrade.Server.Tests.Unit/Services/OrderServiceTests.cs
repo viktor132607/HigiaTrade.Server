@@ -1,171 +1,176 @@
-using Moq;
-using Microsoft.Extensions.Options;
-using Microsoft.EntityFrameworkCore;
-using HygiaTrade.Data;
-using HygiaTrade.Common.Options;
 using HygiaTrade.Common.Requests.Order;
-using HygiaTrade.Common.Responses.Order;
-using HygiaTrade.Core.Exceptions;
-using HygiaTrade.Core.StaticClasses;
-using HygiaTrade.Data.Entities;
-using HygiaTrade.Domain.Services;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using HygiaTrade.Common.Requests.OrderItem;
-using HygiaTrade.Core.Enums;
+using HygiaTrade.Common.Responses.Order;
 using HygiaTrade.Core.Pages;
-using HygiaTrade.Data.Interfaces;
-using HygiaTrade.Data.PaginationAndFiltering;
-using HygiaTrade.Domain.Interfaces;
-using Xunit;
+using HygiaTrade.Domain.Services;
+using Moq;
 
-namespace HygiaTrade.Tests.Unit.Services
+namespace HygiaTrade.Tests.Unit.Services;
+
+public sealed class OrderServiceTests
 {
-    public class OrderServiceTests
+    private readonly Mock<IOrderAdministrationService> administration = new();
+    private readonly Mock<IOrderCartService> cart = new();
+    private readonly Mock<ICurrentOrderCheckoutService> currentCheckout = new();
+    private readonly Mock<IGuestOrderCheckoutService> guestCheckout = new();
+
+    private OrderService CreateService() =>
+        new(
+            administration.Object,
+            cart.Object,
+            currentCheckout.Object,
+            guestCheckout.Object);
+
+    [Fact]
+    public async Task ChangeStatusAsync_Delegates()
     {
-        private readonly Mock<IOrderRepository> orderRepositoryMock;
-        private readonly Mock<IProductRepository> productRepositoryMock;
-        private readonly Mock<IAuthService> authServiceMock;
-        private readonly Mock<IOrderItemRepository> orderItemRepositoryMock;
-        private readonly Mock<IUserRepository> userRepositoryMock;
-        private readonly Mock<IEmailNotificationService> emailNotificationServiceMock;
-        private readonly OrderService orderService;
-        private readonly ApplicationDbContext dbContext;
-
-        public OrderServiceTests()
+        var request = new ChangeOrderStatusRequest
         {
-            orderRepositoryMock = new();
-            productRepositoryMock = new();
-            authServiceMock = new();
-            orderItemRepositoryMock = new();
-            userRepositoryMock = new();
-            emailNotificationServiceMock = new();
-            DbContextOptions<ApplicationDbContext> dbOptions =
-                new DbContextOptionsBuilder<ApplicationDbContext>()
-                    .UseInMemoryDatabase($"OrderServiceTests-{Guid.NewGuid():N}")
-                    .Options;
-            dbContext = new ApplicationDbContext(dbOptions);
-            orderService = new(
-                orderRepositoryMock.Object,
-                productRepositoryMock.Object,
-                authServiceMock.Object,
-                orderItemRepositoryMock.Object,
-                userRepositoryMock.Object,
-                emailNotificationServiceMock.Object,
-                Options.Create(new PaymentOptions()),
-                dbContext);
-        }
+            OrderId = Guid.NewGuid(),
+            OrderStatus = Core.Enums.OrderStatus.Processing
+        };
 
-        [Fact]
-        public async Task ChangeStatusAsync_ShouldThrowAppException_WhenOrderNotFound()
-        {
-            orderRepositoryMock.Setup(x => x.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync((Order?)null);
+        administration
+            .Setup(service => service.ChangeStatusAsync(request))
+            .ReturnsAsync(true);
 
-            AppException exception = await Assert.ThrowsAsync<AppException>(async () =>
-                await orderService.ChangeStatusAsync(new() { OrderId = Guid.NewGuid(), OrderStatus = OrderStatus.Cancelled }));
-
-            Assert.Equal("Order not found", exception.Message);
-            Assert.Equal(404, exception.StatusCode);
-        }
-
-        [Fact]
-        public async Task ChangeStatusAsync_ShouldReturnTrue_WhenOrderStatusChanged()
-        {
-            Order order = new() { Id = Guid.NewGuid(), Status = OrderStatus.Created };
-            orderRepositoryMock.Setup(x => x.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(order);
-            orderRepositoryMock.Setup(x => x.ChangeStatusAsync(It.IsAny<Guid>(), It.IsAny<OrderStatus>())).ReturnsAsync((Order?)null);
-
-            bool result = await orderService.ChangeStatusAsync(new() { OrderId = order.Id, OrderStatus = OrderStatus.Delivered });
-
-            Assert.True(result);
-        }
-
-        [Fact]
-        public async Task GetAsync_ShouldThrowAppException_WhenOrderNotFound()
-        {
-            authServiceMock.Setup(x => x.GetCurrentUserId()).ReturnsAsync(Guid.NewGuid().ToString());
-            orderRepositoryMock.Setup(x => x.GetByUserIdAsync(It.IsAny<Guid>())).ReturnsAsync((Order?)null);
-
-            AppException exception = await Assert.ThrowsAsync<AppException>(async () =>
-                await orderService.GetAsync());
-
-            Assert.Equal("Order not found", exception.Message);
-            Assert.Equal(404, exception.StatusCode);
-        }
-
-        [Fact]
-        public async Task GetAsync_ShouldReturnOrderResponse()
-        {
-            Order order = new()
-            {
-                Id = Guid.NewGuid(),
-                UserId = Guid.NewGuid(),
-                OrderTotalPrice = 100,
-                Status = OrderStatus.Created
-            };
-            authServiceMock.Setup(x => x.GetCurrentUserId()).ReturnsAsync(order.UserId!.Value.ToString());
-            orderRepositoryMock.Setup(x => x.GetByUserIdAsync(It.IsAny<Guid>())).ReturnsAsync(order);
-
-            OrderResponse result = await orderService.GetAsync();
-
-            Assert.NotNull(result);
-            Assert.Equal(order.Id, result.Id);
-        }
-
-        [Fact]
-        public async Task AddProductAsync_ShouldThrowAppException_WhenProductNotFound()
-        {
-            AddOrderItemRequest request = new() { ProductId = Guid.NewGuid(), Quantity = 1 };
-            authServiceMock.Setup(x => x.GetCurrentUserId()).ReturnsAsync(Guid.NewGuid().ToString());
-            productRepositoryMock.Setup(x => x.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync((Product?)null);
-
-            AppException exception = await Assert.ThrowsAsync<AppException>(async () =>
-                await orderService.AddProductAsync(request));
-
-            Assert.Equal("Product not found", exception.Message);
-            Assert.Equal(404, exception.StatusCode);
-        }
-
-        [Fact]
-        public async Task RemoveProductAsync_ShouldThrowAppException_WhenOrderNotFound()
-        {
-            RemoveOrderItemRequest request = new()
-            {
-                ProductId = Guid.NewGuid(),
-                Quantity = 0
-            };
-            authServiceMock.Setup(x => x.GetCurrentUserId()).ReturnsAsync(Guid.NewGuid().ToString());
-            orderRepositoryMock.Setup(x => x.GetByUserIdAsync(It.IsAny<Guid>())).ReturnsAsync((Order?)null);
-
-            AppException exception = await Assert.ThrowsAsync<AppException>(async () =>
-                await orderService.RemoveProductAsync(request));
-
-            Assert.Equal("Order not found", exception.Message);
-            Assert.Equal(404, exception.StatusCode);
-        }
-
-        [Fact]
-        public async Task SendCurrentAsync_ShouldThrowAppException_WhenOrderNotFound()
-        {
-            SendOrderRequest request = new()
-            {
-                Names = "John Doe",
-                PostalCode = null,
-                Country = null,
-                City = null,
-                Address = null,
-                Phone = null
-            };
-            authServiceMock.Setup(x => x.GetCurrentUserId()).ReturnsAsync(Guid.NewGuid().ToString());
-            orderRepositoryMock.Setup(x => x.GetByUserIdAsync(It.IsAny<Guid>())).ReturnsAsync((Order?)null);
-
-            AppException exception = await Assert.ThrowsAsync<AppException>(async () =>
-                await orderService.SendCurrentAsync(request));
-
-            Assert.Equal("Order not found", exception.Message);
-            Assert.Equal(404, exception.StatusCode);
-        }
+        Assert.True(
+            await CreateService().ChangeStatusAsync(request));
     }
+
+    [Fact]
+    public async Task SearchOrdersAsync_Delegates()
+    {
+        var request = new SearchOrderRequest();
+        var expected = new Paginated<OrderResponse>
+        {
+            Items = [],
+            TotalCount = 0
+        };
+
+        administration
+            .Setup(service => service.SearchOrdersAsync(request))
+            .ReturnsAsync(expected);
+
+        Assert.Same(
+            expected,
+            await CreateService().SearchOrdersAsync(request));
+    }
+
+    [Fact]
+    public async Task GetAsync_Delegates()
+    {
+        var expected = Response();
+
+        cart.Setup(service => service.GetAsync())
+            .ReturnsAsync(expected);
+
+        Assert.Same(expected, await CreateService().GetAsync());
+    }
+
+    [Fact]
+    public async Task AddProductAsync_Delegates()
+    {
+        var request = new AddOrderItemRequest
+        {
+            ProductId = Guid.NewGuid(),
+            Quantity = 1
+        };
+
+        var expected = Response();
+
+        cart
+            .Setup(service => service.AddProductAsync(request))
+            .ReturnsAsync(expected);
+
+        Assert.Same(
+            expected,
+            await CreateService().AddProductAsync(request));
+    }
+
+    [Fact]
+    public async Task RemoveProductAsync_Delegates()
+    {
+        var request = new RemoveOrderItemRequest
+        {
+            ProductId = Guid.NewGuid(),
+            Quantity = 1
+        };
+
+        var expected = Response();
+
+        cart
+            .Setup(service => service.RemoveProductAsync(request))
+            .ReturnsAsync(expected);
+
+        Assert.Same(
+            expected,
+            await CreateService().RemoveProductAsync(request));
+    }
+
+    [Fact]
+    public async Task SendCurrentAsync_Delegates()
+    {
+        var request = SendRequest();
+
+        currentCheckout
+            .Setup(service => service.SendAsync(request))
+            .ReturnsAsync(true);
+
+        Assert.True(
+            await CreateService().SendCurrentAsync(request));
+    }
+
+    [Fact]
+    public async Task SendGuestAsync_Delegates()
+    {
+        var request = GuestRequest();
+        Guid expected = Guid.NewGuid();
+
+        guestCheckout
+            .Setup(service => service.SendAsync(request))
+            .ReturnsAsync(expected);
+
+        Assert.Equal(
+            expected,
+            await CreateService().SendGuestAsync(request));
+    }
+
+    private static OrderResponse Response() =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            OrderTotalPrice = 1m
+        };
+
+    private static SendOrderRequest SendRequest() =>
+        new()
+        {
+            Names = "User",
+            PostalCode = "7000",
+            Country = "BG",
+            City = "Ruse",
+            Address = "Street",
+            Phone = "1"
+        };
+
+    private static GuestOrderRequest GuestRequest() =>
+        new()
+        {
+            Names = "Guest",
+            Email = "guest@example.com",
+            PostalCode = "7000",
+            Country = "BG",
+            City = "Ruse",
+            Address = "Street",
+            Phone = "1",
+            Items =
+            [
+                new GuestOrderItemRequest
+                {
+                    ProductId = Guid.NewGuid(),
+                    Quantity = 1
+                }
+            ]
+        };
 }
