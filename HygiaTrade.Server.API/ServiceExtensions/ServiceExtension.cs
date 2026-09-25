@@ -33,6 +33,9 @@ public static class ServiceExtension
 		services.AddTransient<IInvoiceNumberService, InvoiceNumberService>();
 		services.AddTransient<IReportsService, ReportsService>();
 		services.AddTransient<IHomeSlideshowService, HomeSlideshowService>();
+		services.AddScoped<IHomeSlideshowStore, HomeSlideshowStore>();
+		services.AddSingleton<IHomeSlideshowPayloadNormalizer, HomeSlideshowPayloadNormalizer>();
+		services.AddSingleton<IHomeSlideshowDefaults, HomeSlideshowDefaults>();
 		services.AddTransient<IProductImagePresentationService, ProductImagePresentationService>();
 		services.AddTransient<INewProductsService, NewProductsService>();
 		services.AddTransient<IInventoryService, InventoryService>();
