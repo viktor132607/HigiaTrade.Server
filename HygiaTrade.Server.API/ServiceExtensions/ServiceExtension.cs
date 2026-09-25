@@ -45,6 +45,8 @@ public static class ServiceExtension
 		services.AddTransient<IInvoiceParser, InvoiceParser>();
 		services.AddScoped<IInvoiceImportRepository, InvoiceImportRepository>();
 		services.AddTransient<IInvoiceNumberService, InvoiceNumberService>();
+		services.AddSingleton<IInvoiceNumberPolicy, InvoiceNumberPolicy>();
+		services.AddScoped<IInvoiceNumberLookup, InvoiceNumberLookup>();
 		services.AddTransient<IReportsService, ReportsService>();
 		services.AddSingleton<IReportsRequestNormalizer, ReportsRequestNormalizer>();
 		services.AddScoped<IReportsDataSource, ReportsDataSource>();
