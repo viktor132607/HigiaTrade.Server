@@ -28,6 +28,7 @@ public class OrderResponse
         public string? InvoiceVatId { get; set; }
         public string? InvoiceAddress { get; set; }
 
+    public string PaymentStatus { get; set; } = "Unpaid";
     public OrderStatus Status { get; set; }
     public DateTime CreatedOn { get; set; }
     public ICollection<OrderItemResponse> Items { get; set; } = new List<OrderItemResponse>();

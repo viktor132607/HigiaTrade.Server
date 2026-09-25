@@ -1,3 +1,4 @@
+using HygiaTrade.Domain.Payments;
 using Microsoft.Extensions.Options;
 using HygiaTrade.API.Services;
 using HygiaTrade.Common.Options;
@@ -13,6 +14,10 @@ public static class ServiceExtension
 	public static IServiceCollection AddCustomServices(
 		this IServiceCollection services)
 	{
+        services.AddScoped<IStripeOrderRepository, StripeOrderRepository>();
+        services.AddScoped<IStripeGateway, StripeGateway>();
+        services.AddScoped<StripeCheckoutService>();
+        services.AddHostedService<StripeReconciliationWorker>();
 		// SERVICES
 		services.AddTransient<IAuthService, AuthService>();
 		services.AddTransient<IUserService, UserService>();

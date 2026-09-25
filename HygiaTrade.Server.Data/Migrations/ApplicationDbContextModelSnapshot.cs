@@ -80,6 +80,16 @@ namespace HygiaTrade.Data.Migrations
 
             modelBuilder.Entity("HygiaTrade.Data.Entities.Order", b =>
                 {
+                    b.Property<string>("PaymentStatus").IsRequired().HasColumnType("text");
+                    b.Property<Guid?>("StripeCheckoutAttemptId").HasColumnType("uuid");
+                    b.Property<string>("StripeCheckoutFingerprint").HasColumnType("text");
+                    b.Property<string>("StripeSessionId").HasColumnType("text");
+                    b.Property<string>("StripeCheckoutUrl").HasColumnType("text");
+                    b.Property<DateTime?>("StripeExpiresAt").HasColumnType("timestamp with time zone");
+                    b.Property<bool>("StripeLiveMode").HasColumnType("boolean");
+                    b.HasIndex("StripeSessionId").IsUnique();
+                    b.HasIndex("StripeCheckoutAttemptId").IsUnique();
+
                     b.Property<string>("DeliveryRegion").HasColumnType("text");
                     b.Property<string>("PaymentMethod").HasColumnType("text");
                     b.Property<string>("DeliveryMethod").HasColumnType("text");

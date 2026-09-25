@@ -33,6 +33,7 @@ public class OrderRepository(ApplicationDbContext context) : Repository<Order>(c
                 order.UserId == userId &&
                 !order.IsDeleted &&
                 order.Status != OrderStatus.Created &&
+                order.Status != OrderStatus.AwaitingPayment &&
                 order.Status != OrderStatus.PendingVerification &&
                 order.Status != OrderStatus.Cancelled &&
                 order.Items.Any(item => !item.IsDeleted && item.ProductId == productId));

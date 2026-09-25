@@ -102,6 +102,7 @@ public sealed class DistributionRouteRepository(
             .Where(order =>
                 !order.IsDeleted &&
                 order.Status != OrderStatus.Delivered &&
+                order.Status != OrderStatus.AwaitingPayment &&
                 order.Status != OrderStatus.Cancelled)
             .OrderBy(order => order.CreatedOn)
             .ToListAsync(cancellationToken);

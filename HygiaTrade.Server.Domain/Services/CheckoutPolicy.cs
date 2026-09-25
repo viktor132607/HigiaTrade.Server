@@ -10,12 +10,12 @@ public static class CheckoutPolicy
     public const decimal MinimumOrderTotal = 50m;
     private static readonly string[] Regions = ["Русе", "Силистра", "Разград", "Свищов", "Бяла", "Търговище", "Ruse", "Silistra", "Razgrad", "Svishtov", "Byala", "Targovishte"];
 
-    public static void Validate(CheckoutDetails request)
+    public static void Validate(CheckoutDetails request, bool allowCard = false)
     {
         if (!new[] { "BG", "Bulgaria", "България" }.Contains(request.Country.Trim(), StringComparer.OrdinalIgnoreCase)
             || !Regions.Contains((request.DeliveryRegion ?? request.City).Trim(), StringComparer.OrdinalIgnoreCase))
             throw new AppException("Delivery address is outside the supported regions.").SetStatusCode(400);
-        if (request.PaymentMethod?.Trim() is not ("bank-transfer" or "cash-on-delivery"))
+        if (request.PaymentMethod?.Trim() is not ("bank-transfer" or "cash-on-delivery") && !(allowCard && request.PaymentMethod == "online-card"))
             throw new AppException("Unsupported payment method.").SetStatusCode(400);
         if (request.DeliveryMethod?.Trim() != "regional-delivery")
             throw new AppException("Unsupported delivery method.").SetStatusCode(400);

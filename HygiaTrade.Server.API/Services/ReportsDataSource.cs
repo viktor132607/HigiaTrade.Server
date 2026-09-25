@@ -68,6 +68,7 @@ public sealed class ReportsDataSource(
             .AsNoTracking()
             .Where(order =>
                 !order.IsDeleted &&
+                order.Status != OrderStatus.AwaitingPayment &&
                 order.Status != OrderStatus.Cancelled &&
                 order.CreatedOn >= fromUtc &&
                 order.CreatedOn < toExclusiveUtc)

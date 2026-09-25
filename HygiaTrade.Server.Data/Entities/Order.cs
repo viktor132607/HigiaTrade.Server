@@ -23,6 +23,14 @@ namespace HygiaTrade.Data.Entities
         public string? InvoiceAddress { get; set; }
 
 
+        public string PaymentStatus { get; set; } = "Unpaid";
+        public Guid? StripeCheckoutAttemptId { get; set; }
+        public string? StripeCheckoutFingerprint { get; set; }
+        public string? StripeSessionId { get; set; }
+        public string? StripeCheckoutUrl { get; set; }
+        public DateTime? StripeExpiresAt { get; set; }
+        public bool StripeLiveMode { get; set; }
+
         public decimal OrderSubtotalExclVat { get; set; }
         public decimal OrderVatAmount { get; set; }
         public decimal OrderTotalPrice { get; set; }

@@ -40,6 +40,13 @@ public sealed class OrderAdministrationService(
                 .SetStatusCode(404);
         }
 
+        if (request.OrderStatus == OrderStatus.AwaitingPayment || (order.PaymentMethod == "online-card" && request.OrderStatus == OrderStatus.Created))
+            throw new AppException("Payment state is managed by Stripe.").SetStatusCode(409);
+        if (order.PaymentMethod == "online-card" && order.PaymentStatus != "Paid")
+            throw new AppException("Card payment must be confirmed by Stripe. Cancel unpaid payments through the payment page.").SetStatusCode(409);
+        if (order.PaymentMethod == "online-card" && request.OrderStatus == OrderStatus.Cancelled)
+            throw new AppException("Paid card orders require a refund through Stripe before cancellation.").SetStatusCode(409);
+
         if (request.OrderStatus != OrderStatus.Cancelled &&
             order.Status == OrderStatus.Created)
         {

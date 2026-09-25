@@ -29,6 +29,18 @@ builder.Services.Configure<EmailOptions>(
 builder.Services.Configure<CorsOptions>(
 	builder.Configuration.GetSection(CorsOptions.SectionName));
 
+builder.Services.AddSingleton(StripeOptions.FromConfiguration(builder.Configuration));
+builder.Services.AddRateLimiter(options => {
+    options.AddPolicy("stripe-checkout", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions {
+            PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
+        }));
+    options.AddPolicy("stripe-status", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions {
+            PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
+        }));
+});
+
 builder.Services.Configure<PaymentOptions>(
 	builder.Configuration.GetSection(PaymentOptions.SectionName));
 

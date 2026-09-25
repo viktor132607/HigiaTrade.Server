@@ -8,6 +8,7 @@ namespace HygiaTrade.Core.Enums
         Processing,         
         Shipped,            
         Delivered,          
-        Cancelled   
+        Cancelled,
+        AwaitingPayment
     }
 }

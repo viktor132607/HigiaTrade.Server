@@ -28,6 +28,8 @@ namespace HygiaTrade.Data
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
+            builder.Entity<Order>().HasIndex(o => o.StripeSessionId).IsUnique();
+            builder.Entity<Order>().HasIndex(o => o.StripeCheckoutAttemptId).IsUnique();
 
             builder.Entity<Product>()
                 .Property(p => p.RegularPrice)

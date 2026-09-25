@@ -19,6 +19,7 @@ public static class OrderMapping
             InvoiceAddress = order.InvoiceAddress,
 
             Id = order.Id,
+            PaymentStatus = order.PaymentStatus,
             UserId = order.UserId,
             OrderSubtotalExclVat =
                 order.OrderSubtotalExclVat,
