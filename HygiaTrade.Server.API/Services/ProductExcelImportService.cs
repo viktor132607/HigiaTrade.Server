@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.IO.Compression;
-using System.Xml.Linq;
+using System.Xml;\nusing System.Xml.Linq;
 using HygiaTrade.Core.Exceptions;
 using HygiaTrade.Data;
 using HygiaTrade.Data.Entities;
