@@ -81,6 +81,8 @@ public static class ServiceExtension
 		services.AddTransient<IProductSearchService, ProductSearchService>();
 		services.AddTransient<IProductImageService, ProductImageService>();
 		services.AddTransient<IProductPricingPolicy, ProductPricingPolicy>();
+		services.AddTransient<IProductExcelImportService, ProductExcelImportService>();
+		services.AddSingleton<IProductExcelWorkbookReader, ProductExcelWorkbookReader>();
 		services.AddTransient<IWishlistService, WishlistService>();
 		services.AddTransient<IReviewService, ReviewService>();
 		services.AddTransient<IOrderService, OrderService>();
