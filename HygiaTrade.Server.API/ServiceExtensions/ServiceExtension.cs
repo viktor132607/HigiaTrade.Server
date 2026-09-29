@@ -100,9 +100,13 @@ public static class ServiceExtension
 		services.AddSingleton<IGdprDataAnonymizer, GdprDataAnonymizer>();
 		services.AddSingleton<IGdprClock, GdprClock>();
 
-		services.AddSingleton<
-			IPasswordResetTokenStore,
-			MemoryPasswordResetTokenStore>();
+        services.AddSingleton<IPasswordResetTokenStore>(serviceProvider =>
+        {
+            DatabaseBackupConnection connection =
+                serviceProvider.GetRequiredService<DatabaseBackupConnection>();
+
+            return new PostgresPasswordResetTokenStore(connection.ConnectionString);
+        });
 
 		services.AddTransient<ConsoleEmailNotificationService>();
 
