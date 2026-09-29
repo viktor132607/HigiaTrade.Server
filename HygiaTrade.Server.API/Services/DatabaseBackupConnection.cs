@@ -26,6 +26,8 @@ public sealed class DatabaseBackupConnection
 
     public string Database => connection.Database!;
 
+    internal string ConnectionString => connection.ConnectionString;
+
     public IReadOnlyDictionary<string, string>
         CreateEnvironment()
     {
