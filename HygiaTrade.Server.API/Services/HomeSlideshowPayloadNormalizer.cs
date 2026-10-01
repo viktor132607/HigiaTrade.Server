@@ -61,6 +61,7 @@ public sealed class HomeSlideshowPayloadNormalizer
         slide.CtaEn = Limit(slide.CtaEn, 80);
         slide.CtaUrl = Limit(slide.CtaUrl, 500);
         slide.Image = Limit(slide.Image, 2000);
+        slide.ImagePositionY = Math.Clamp(slide.ImagePositionY, 0, 100);
         slide.Accent = Limit(slide.Accent, 200);
     }
 

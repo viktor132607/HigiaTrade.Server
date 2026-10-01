@@ -63,5 +63,6 @@ public sealed class HomeSlideDto
     public string CtaEn { get; set; } = string.Empty;
     public string CtaUrl { get; set; } = "/products";
     public string Image { get; set; } = string.Empty;
+    public int ImagePositionY { get; set; } = 50;
     public string Accent { get; set; } = "from-teal-100 via-cyan-50 to-white";
 }
