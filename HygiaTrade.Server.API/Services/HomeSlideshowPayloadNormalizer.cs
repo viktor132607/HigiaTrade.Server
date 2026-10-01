@@ -12,6 +12,10 @@ public sealed class HomeSlideshowPayloadNormalizer
 {
     public void Normalize(HomeSlideshowPayload payload)
     {
+        payload.SlideDurationSeconds = payload.SlideDurationSeconds <= 0
+            ? 5
+            : Math.Clamp(payload.SlideDurationSeconds, 1, 60);
+
         if (payload.Slides is null ||
             payload.Slides.Count == 0)
         {

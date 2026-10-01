@@ -12,6 +12,7 @@ public sealed class HomeSlideshowDefaults
 {
     public HomeSlideshowPayload Create() => new()
     {
+        SlideDurationSeconds = 5,
         Slides =
         [
             new HomeSlideDto

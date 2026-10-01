@@ -43,6 +43,7 @@ public class HomeSlideshowController(
 
 public sealed class HomeSlideshowPayload
 {
+    public int SlideDurationSeconds { get; set; } = 5;
     public List<HomeSlideDto> Slides { get; set; } = [];
 }
 
