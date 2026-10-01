@@ -33,6 +33,7 @@ public sealed class HomeSlideshowDefaults
                 CtaUrl = "/products",
                 Image = "https://images.unsplash.com/photo-1585421514738-01798e348b17?auto=format&fit=crop&w=1200&q=80",
                 ImagePositionY = 50,
+                ImageLightening = 100,
                 Accent = "from-teal-100 via-cyan-50 to-white"
             },
             new HomeSlideDto
@@ -53,6 +54,7 @@ public sealed class HomeSlideshowDefaults
                 CtaUrl = "/products",
                 Image = "https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?auto=format&fit=crop&w=1200&q=80",
                 ImagePositionY = 50,
+                ImageLightening = 100,
                 Accent = "from-sky-100 via-cyan-50 to-white"
             },
             new HomeSlideDto
@@ -73,6 +75,7 @@ public sealed class HomeSlideshowDefaults
                 CtaUrl = "/products",
                 Image = "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80",
                 ImagePositionY = 50,
+                ImageLightening = 100,
                 Accent = "from-emerald-100 via-teal-50 to-white"
             }
         ]
