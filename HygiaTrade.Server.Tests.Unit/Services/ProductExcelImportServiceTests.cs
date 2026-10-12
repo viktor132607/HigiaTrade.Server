@@ -46,6 +46,9 @@ public sealed class ProductExcelImportServiceTests
         Product product = await db.Products.SingleAsync();
         Assert.Equal("Widget", product.Title);
         Assert.Equal("Acme", product.Brand);
+        Brand importedBrand = await db.Brands.SingleAsync();
+        Assert.Equal("Acme", importedBrand.Name);
+        Assert.Null(importedBrand.ThumbnailImageUrl);
         Assert.Equal(category.Id, product.CategoryId);
         Assert.Equal(12.50m, product.RegularPrice);
         Assert.Equal(10, product.DiscountPercentage);

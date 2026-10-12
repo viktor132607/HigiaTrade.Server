@@ -343,6 +343,17 @@ using (IServiceScope scope = app.Services.CreateScope())
 
 await DbInitializer.SeedAsync(app.Services);
 
+// Older Excel imports stored product.Brand without creating Brands entries.
+// Reconcile those existing brands (including their known logos) once at
+// startup; on subsequent deploys this is a no-op.
+using (IServiceScope brandScope = app.Services.CreateScope())
+{
+    ApplicationDbContext brandDb =
+        brandScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    int synced = await ImportedProductBrandSync.BackfillExistingProductBrandsAsync(brandDb);
+    app.Logger.LogInformation("Synchronized {Count} missing or logo-less brand records.", synced);
+}
+
 app.Run();
 
 static string GetRateLimitPartitionKey(HttpContext context) =>

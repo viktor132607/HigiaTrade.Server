@@ -286,6 +286,87 @@ public sealed class ProductExcelWorkbookReader
         }
     }
 
+    /// <summary>
+    /// Optional BrandLogos worksheet: Brand, BrandLogoURL. The product import
+    /// still works when this sheet is absent or a workbook reader is mocked.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> ReadBrandLogos(Stream stream)
+    {
+        var logos = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!stream.CanSeek) return logos;
+
+        long initialPosition = stream.Position;
+        try
+        {
+            stream.Position = 0;
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+            if (archive.GetEntry("xl/workbook.xml") is null ||
+                archive.GetEntry("xl/_rels/workbook.xml.rels") is null)
+                return logos;
+
+            XDocument workbook = LoadDocument(archive, "xl/workbook.xml", "Missing workbook.");
+            XDocument relations = LoadDocument(archive, "xl/_rels/workbook.xml.rels", "Missing relationships.");
+            XElement? sheet = workbook.Descendants(SpreadsheetNamespace + "sheet")
+                .FirstOrDefault(item => string.Equals(
+                    item.Attribute("name")?.Value, "BrandLogos",
+                    StringComparison.OrdinalIgnoreCase));
+            if (sheet is null) return logos;
+
+            string? relationId = sheet.Attribute(DocumentRelationshipsNamespace + "id")?.Value;
+            string? target = relations.Descendants(PackageRelationshipsNamespace + "Relationship")
+                .FirstOrDefault(item => item.Attribute("Id")?.Value == relationId)
+                ?.Attribute("Target")?.Value;
+            if (string.IsNullOrWhiteSpace(target)) return logos;
+
+            XDocument worksheet = LoadDocument(
+                archive, ResolveTarget("xl/workbook.xml", target), "Missing BrandLogos sheet.");
+            IReadOnlyList<string> strings = ReadSharedStrings(archive);
+            List<Dictionary<int, string>> rows = worksheet.Descendants(SpreadsheetNamespace + "row")
+                .Select(row => ReadCells(row, strings))
+                .Where(row => row.Count > 0)
+                .ToList();
+            if (rows.Count < 2) return logos;
+
+            int brandColumn = rows[0]
+                .Where(cell => NormalizeHeader(cell.Value) == "brand")
+                .Select(cell => cell.Key).FirstOrDefault();
+            int logoColumn = rows[0]
+                .Where(cell => NormalizeHeader(cell.Value) == "brandlogourl")
+                .Select(cell => cell.Key).FirstOrDefault();
+            if (brandColumn == 0 || logoColumn == 0) return logos;
+
+            foreach (Dictionary<int, string> row in rows.Skip(1).Take(1000))
+            {
+                row.TryGetValue(brandColumn, out string? name);
+                row.TryGetValue(logoColumn, out string? url);
+                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(url))
+                    continue;
+                name = name.Trim();
+                url = url.Trim();
+                if (name.Length is < 2 or > 80 || url.Length > 2000 ||
+                    !Uri.TryCreate(url, UriKind.Absolute, out Uri? image) ||
+                    image.Scheme != Uri.UriSchemeHttps)
+                    continue;
+                logos.TryAdd(name, url);
+            }
+        }
+        catch (Exception exception) when (
+            exception is InvalidDataException or
+            XmlException or
+            IOException or
+            ProductExcelImportException)
+        {
+            // The logo sheet is optional and must not prevent a valid product import.
+            logos.Clear();
+        }
+        finally
+        {
+            stream.Position = initialPosition;
+        }
+
+        return logos;
+    }
+
     private static XDocument LoadDocument(
         ZipArchive archive,
         string path,
@@ -626,6 +707,8 @@ public sealed class ProductExcelImportService(
 
         IReadOnlyList<ProductExcelImportRow> rows =
             workbookReader.Read(memory);
+        IReadOnlyDictionary<string, string> brandLogoUrls =
+            ProductExcelWorkbookReader.ReadBrandLogos(memory);
 
         if (rows.Count == 0)
         {
@@ -662,6 +745,10 @@ public sealed class ProductExcelImportService(
             await db.Products
                 .Where(product => !product.IsDeleted)
                 .ToListAsync(cancellationToken);
+
+        Dictionary<string, Brand> brandsByName =
+            await ImportedProductBrandSync.LoadBrandsAsync(db, cancellationToken);
+        bool changedBrands = false;
 
         Dictionary<string, List<Product>> productsByKey =
             existingProducts
@@ -720,6 +807,11 @@ public sealed class ProductExcelImportService(
                     throw new ProductExcelRowException(
                         "More than one existing product matches this title and brand.");
                 }
+
+                // Create/update brand records for valid rows only.
+                // Brand logos are read from the optional BrandLogos worksheet.
+                changedBrands |= ImportedProductBrandSync.EnsureBrand(
+                    db, brandsByName, parsed.Brand, brandLogoUrls);
 
                 if (matches is { Count: 1 })
                 {
@@ -815,7 +907,7 @@ public sealed class ProductExcelImportService(
             }
         }
 
-        if (created > 0 || updated > 0)
+        if (created > 0 || updated > 0 || changedBrands)
         {
             await db.SaveChangesAsync(cancellationToken);
         }
@@ -889,6 +981,8 @@ public sealed class ProductExcelImportService(
             string.IsNullOrWhiteSpace(row.Brand)
                 ? null
                 : row.Brand.Trim();
+        if (brand is { Length: > 80 or < 2 })
+            throw new ProductExcelRowException("Brand must contain between 2 and 80 characters.");
 
         decimal regularPrice =
             ParseRequiredDecimal(
