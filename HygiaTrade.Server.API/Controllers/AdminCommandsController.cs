@@ -25,4 +25,4 @@ public sealed class AdminCommandsController(IAdminCommandService service) : Cont
     }
 }
 
-public sealed record AdminCommandRequest([property: Required, StringLength(200)] string Command);
+public sealed record AdminCommandRequest([param: Required, StringLength(200)] string Command);
