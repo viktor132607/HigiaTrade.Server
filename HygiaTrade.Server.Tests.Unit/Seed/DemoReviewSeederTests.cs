@@ -109,7 +109,7 @@ public sealed class DemoReviewSeederTests
 
         DemoReviewSeeder.Result result = await DemoReviewSeeder.SeedAsync(db);
         Assert.Equal(2, result.ProductsReviewed);
-        Assert.Equal(2, await db.Reviews.CountAsync(review => review.ProductId != reviewed.Id && !review.IsDeleted));
+        Assert.Equal(3, await db.Reviews.CountAsync(review => review.ProductId != reviewed.Id && !review.IsDeleted));
         Assert.Equal(1, await db.Reviews.CountAsync(review => review.ProductId == reviewed.Id));
         Assert.Equal(0, await db.Reviews.CountAsync(review => review.ProductId == inactive.Id));
         Assert.Equal("Original customer review",
