@@ -52,12 +52,15 @@ public sealed class HomeSlideshowPayloadNormalizerTests
                         ["title"] = new() { X = 7, Y = 8, Scale = 0.75 },
                         ["extra:abc"] = new() { X = 20, Y = 35, Scale = 1.4 }
                     },
-                    Hidden = ["cta", "cta", "not-found"]
+                    Hidden = ["cta", "cta", "not-found"],
+                    ImagePositionY = -50,
+                    ImageLightening = 75
                 },
                 ["monitor27"] = new()
                 {
                     Positions = new() { ["title"] = new() { X = 84, Y = 200, Scale = 10 } },
-                    Hidden = ["extra:abc"]
+                    Hidden = ["extra:abc"],
+                    ImagePositionY = 120
                 },
                 ["unknown-profile"] = new() { Hidden = ["title"] }
             }
@@ -69,9 +72,13 @@ public sealed class HomeSlideshowPayloadNormalizerTests
         Assert.Equal(0.75, slide.Layouts["mobile"].Positions["title"].Scale);
         Assert.Equal(20, slide.Layouts["mobile"].Positions["extra:abc"].X);
         Assert.Equal(["cta"], slide.Layouts["mobile"].Hidden);
+        Assert.Equal(0, slide.Layouts["mobile"].ImagePositionY);
+        Assert.Equal(75, slide.Layouts["mobile"].ImageLightening);
         Assert.Equal(100, slide.Layouts["monitor27"].Positions["title"].Y);
         Assert.Equal(2.5, slide.Layouts["monitor27"].Positions["title"].Scale);
         Assert.Equal(["extra:abc"], slide.Layouts["monitor27"].Hidden);
+        Assert.Equal(100, slide.Layouts["monitor27"].ImagePositionY);
+        Assert.Null(slide.Layouts["monitor27"].ImageLightening);
         Assert.DoesNotContain("unknown-profile", slide.Layouts.Keys);
     }
 

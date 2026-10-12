@@ -95,4 +95,6 @@ public sealed class HomeSlideScreenLayout
 {
     public Dictionary<string, SlideElementPosition> Positions { get; set; } = new();
     public List<string> Hidden { get; set; } = [];
+    public int? ImagePositionY { get; set; }
+    public int? ImageLightening { get; set; }
 }

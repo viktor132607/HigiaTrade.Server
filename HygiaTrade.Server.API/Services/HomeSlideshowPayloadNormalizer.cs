@@ -115,6 +115,8 @@ public sealed class HomeSlideshowPayloadNormalizer
                 entry => new HomeSlideScreenLayout
                 {
                     Positions = NormalizePositions(entry.Value.Positions, allowedElements),
+                    ImagePositionY = entry.Value.ImagePositionY is int y ? Math.Clamp(y, 0, 100) : null,
+                    ImageLightening = entry.Value.ImageLightening is int light ? Math.Clamp(light, 0, 100) : null,
                     Hidden = (entry.Value.Hidden ?? [])
                         .Where(allowedElements.Contains)
                         .Distinct(StringComparer.Ordinal)
