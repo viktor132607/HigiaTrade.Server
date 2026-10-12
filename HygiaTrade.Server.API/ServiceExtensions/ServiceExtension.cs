@@ -19,6 +19,7 @@ public static class ServiceExtension
         services.AddScoped<StripeCheckoutService>();
         services.AddHostedService<StripeReconciliationWorker>();
 		// SERVICES
+        services.AddScoped<IAdminCommandService, AdminCommandService>();
 		services.AddTransient<IAuthService, AuthService>();
 		services.AddTransient<IUserService, UserService>();
 		services.AddTransient<IUserCurrentUserResolver, UserCurrentUserResolver>();
