@@ -14,10 +14,10 @@ public sealed class HomeSlideshowPayloadNormalizerTests
         {
             Positions = new Dictionary<string, SlideElementPosition>
             {
-                ["title"] = new() { X = 42.5, Y = 34.75 },
-                ["cta"] = new() { X = -50, Y = 125 },
+                ["title"] = new() { X = 42.5, Y = 34.75, Scale = 1.25 },
+                ["cta"] = new() { X = -50, Y = 125, Scale = 10 },
                 ["unknown"] = new() { X = 10, Y = 10 },
-                ["note"] = new() { X = double.NaN, Y = double.PositiveInfinity }
+                ["note"] = new() { X = double.NaN, Y = double.PositiveInfinity, Scale = double.NaN }
             }
         };
         var payload = new HomeSlideshowPayload { Slides = [slide] };
@@ -27,10 +27,13 @@ public sealed class HomeSlideshowPayloadNormalizerTests
         Assert.Equal(3, slide.Positions.Count);
         Assert.Equal(42.5, slide.Positions["title"].X);
         Assert.Equal(34.75, slide.Positions["title"].Y);
+        Assert.Equal(1.25, slide.Positions["title"].Scale);
         Assert.Equal(0, slide.Positions["cta"].X);
         Assert.Equal(100, slide.Positions["cta"].Y);
+        Assert.Equal(2.5, slide.Positions["cta"].Scale);
         Assert.Equal(0, slide.Positions["note"].X);
         Assert.Equal(0, slide.Positions["note"].Y);
+        Assert.Equal(1, slide.Positions["note"].Scale);
         Assert.False(slide.Positions.ContainsKey("unknown"));
     }
 

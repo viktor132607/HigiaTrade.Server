@@ -80,7 +80,8 @@ public sealed class HomeSlideshowPayloadNormalizer
                 entry => new SlideElementPosition
                 {
                     X = double.IsFinite(entry.Value.X) ? Math.Clamp(entry.Value.X, 0d, 100d) : 0d,
-                    Y = double.IsFinite(entry.Value.Y) ? Math.Clamp(entry.Value.Y, 0d, 100d) : 0d
+                    Y = double.IsFinite(entry.Value.Y) ? Math.Clamp(entry.Value.Y, 0d, 100d) : 0d,
+                    Scale = double.IsFinite(entry.Value.Scale) ? Math.Clamp(entry.Value.Scale, 0.5d, 2.5d) : 1d
                 },
                 StringComparer.Ordinal);
     }
