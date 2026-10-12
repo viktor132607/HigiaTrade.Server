@@ -68,6 +68,7 @@ public sealed class HomeSlideDto
     public int? ImageLightening { get; set; } = 100;
     public string Accent { get; set; } = "from-teal-100 via-cyan-50 to-white";
     public Dictionary<string, SlideElementPosition> Positions { get; set; } = new();
+    public List<HomeSlideOverlayElement> Elements { get; set; } = [];
 }
 
 public sealed class SlideElementPosition
@@ -75,4 +76,16 @@ public sealed class SlideElementPosition
     public double X { get; set; }
     public double Y { get; set; }
     public double Scale { get; set; } = 1d;
+}
+
+public sealed class HomeSlideOverlayElement
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Kind { get; set; } = "text";
+    public string TextBg { get; set; } = string.Empty;
+    public string TextEn { get; set; } = string.Empty;
+    public string Url { get; set; } = "/products";
+    public string Color { get; set; } = "#0f172a";
+    public string Background { get; set; } = "#0f172a";
+    public int FontSize { get; set; } = 24;
 }

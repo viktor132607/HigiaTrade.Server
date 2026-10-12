@@ -69,10 +69,33 @@ public sealed class HomeSlideshowPayloadNormalizer
         slide.ImageLightening = Math.Clamp(slide.ImageLightening ?? 100, 0, 100);
         slide.Accent = Limit(slide.Accent, 200);
 
+        slide.Elements = (slide.Elements ?? [])
+            .Where(element => element is not null)
+            .Take(30)
+            .Select(element => new HomeSlideOverlayElement
+            {
+                Id = Limit(element.Id, 64),
+                Kind = element.Kind == "button" ? "button" : "text",
+                TextBg = Limit(element.TextBg, 300),
+                TextEn = Limit(element.TextEn, 300),
+                Url = NormalizeUrl(element.Url),
+                Color = NormalizeColor(element.Color, "#0f172a"),
+                Background = NormalizeColor(element.Background, "#0f172a"),
+                FontSize = Math.Clamp(element.FontSize, 12, 96)
+            })
+            .Where(element => element.Id.Length > 0)
+            .DistinctBy(element => element.Id)
+            .ToList();
+
         var allowedElements = new HashSet<string>(StringComparer.Ordinal)
         {
             "eyebrow", "title", "badge", "note", "cta"
         };
+        foreach (HomeSlideOverlayElement element in slide.Elements)
+        {
+            allowedElements.Add("extra:" + element.Id);
+        }
+
         slide.Positions = (slide.Positions ?? new Dictionary<string, SlideElementPosition>())
             .Where(entry => allowedElements.Contains(entry.Key) && entry.Value is not null)
             .ToDictionary(
@@ -84,6 +107,18 @@ public sealed class HomeSlideshowPayloadNormalizer
                     Scale = double.IsFinite(entry.Value.Scale) ? Math.Clamp(entry.Value.Scale, 0.5d, 2.5d) : 1d
                 },
                 StringComparer.Ordinal);
+    }
+
+    private static string NormalizeColor(string? color, string fallback) =>
+        !string.IsNullOrWhiteSpace(color) &&
+        System.Text.RegularExpressions.Regex.IsMatch(color, "^#[a-fA-F0-9]{6}$")
+            ? color
+            : fallback;
+
+    private static string NormalizeUrl(string? url)
+    {
+        string value = Limit(url, 500);
+        return value.StartsWith("/") && !value.StartsWith("//") ? value : "/products";
     }
 
     private static string Limit(
