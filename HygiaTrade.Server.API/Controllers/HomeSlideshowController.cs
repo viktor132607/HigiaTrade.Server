@@ -67,4 +67,11 @@ public sealed class HomeSlideDto
     public int ImagePositionY { get; set; } = 50;
     public int? ImageLightening { get; set; } = 100;
     public string Accent { get; set; } = "from-teal-100 via-cyan-50 to-white";
+    public Dictionary<string, SlideElementPosition> Positions { get; set; } = new();
+}
+
+public sealed class SlideElementPosition
+{
+    public double X { get; set; }
+    public double Y { get; set; }
 }

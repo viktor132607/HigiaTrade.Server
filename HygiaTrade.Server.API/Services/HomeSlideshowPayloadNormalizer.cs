@@ -68,6 +68,21 @@ public sealed class HomeSlideshowPayloadNormalizer
         slide.ImagePositionY = Math.Clamp(slide.ImagePositionY, 0, 100);
         slide.ImageLightening = Math.Clamp(slide.ImageLightening ?? 100, 0, 100);
         slide.Accent = Limit(slide.Accent, 200);
+
+        var allowedElements = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "eyebrow", "title", "badge", "note", "cta"
+        };
+        slide.Positions = (slide.Positions ?? new Dictionary<string, SlideElementPosition>())
+            .Where(entry => allowedElements.Contains(entry.Key) && entry.Value is not null)
+            .ToDictionary(
+                entry => entry.Key,
+                entry => new SlideElementPosition
+                {
+                    X = double.IsFinite(entry.Value.X) ? Math.Clamp(entry.Value.X, 0d, 100d) : 0d,
+                    Y = double.IsFinite(entry.Value.Y) ? Math.Clamp(entry.Value.Y, 0d, 100d) : 0d
+                },
+                StringComparer.Ordinal);
     }
 
     private static string Limit(
