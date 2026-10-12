@@ -41,7 +41,8 @@ public sealed record ProductExcelImportResult(
     int Updated,
     int Skipped,
     int Failed,
-    IReadOnlyList<ProductExcelImportRowResult> Rows);
+    IReadOnlyList<ProductExcelImportRowResult> Rows,
+    int BrandsSynced = 0);
 
 public sealed class ProductExcelImportException(
     int statusCode,
@@ -748,7 +749,7 @@ public sealed class ProductExcelImportService(
 
         Dictionary<string, Brand> brandsByName =
             await ImportedProductBrandSync.LoadBrandsAsync(db, cancellationToken);
-        bool changedBrands = false;
+        int brandsSynced = 0;
 
         Dictionary<string, List<Product>> productsByKey =
             existingProducts
@@ -810,8 +811,9 @@ public sealed class ProductExcelImportService(
 
                 // Create/update brand records for valid rows only.
                 // Brand logos are read from the optional BrandLogos worksheet.
-                changedBrands |= ImportedProductBrandSync.EnsureBrand(
-                    db, brandsByName, parsed.Brand, brandLogoUrls);
+                if (ImportedProductBrandSync.EnsureBrand(
+                    db, brandsByName, parsed.Brand, brandLogoUrls))
+                    brandsSynced++;
 
                 if (matches is { Count: 1 })
                 {
@@ -907,7 +909,7 @@ public sealed class ProductExcelImportService(
             }
         }
 
-        if (created > 0 || updated > 0 || changedBrands)
+        if (created > 0 || updated > 0 || brandsSynced > 0)
         {
             await db.SaveChangesAsync(cancellationToken);
         }
@@ -922,7 +924,8 @@ public sealed class ProductExcelImportService(
             updated,
             skipped,
             failed,
-            results);
+            results,
+            brandsSynced);
     }
 
     private void Apply(
