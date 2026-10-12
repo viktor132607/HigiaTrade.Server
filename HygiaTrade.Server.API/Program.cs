@@ -343,6 +343,20 @@ using (IServiceScope scope = app.Services.CreateScope())
 
 await DbInitializer.SeedAsync(app.Services);
 
+// Demo data requires an explicit one-time opt-in. Reviews are visibly marked
+// as synthetic in the storefront and never impersonate real customers.
+if (app.Configuration.GetValue<bool>("DemoReviews:Enabled"))
+{
+    using IServiceScope demoReviewScope = app.Services.CreateScope();
+    ApplicationDbContext demoDb =
+        demoReviewScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var result = await HygiaTrade.Data.Seed.DemoReviewSeeder.SeedAsync(demoDb);
+    app.Logger.LogInformation(
+        "Demo review seed: users={Users}, products={Products}, reviews={Reviews}, multi-review products={Multiple}, already seeded={Existing}.",
+        result.UsersCreated, result.ProductsReviewed, result.ReviewsCreated,
+        result.ProductsWithMultipleReviews, result.AlreadySeeded);
+}
+
 // Older Excel imports stored product.Brand without creating Brands entries.
 // Reconcile those existing brands (including their known logos) once at
 // startup; on subsequent deploys this is a no-op.
