@@ -8,6 +8,33 @@ public sealed class HomeSlideshowPayloadNormalizerTests
     private readonly HomeSlideshowPayloadNormalizer normalizer = new();
 
     [Fact]
+    public void Normalize_PreservesAndClampsDraggableElementCoordinates()
+    {
+        var slide = new HomeSlideDto
+        {
+            Positions = new Dictionary<string, SlideElementPosition>
+            {
+                ["title"] = new() { X = 42.5, Y = 34.75 },
+                ["cta"] = new() { X = -50, Y = 125 },
+                ["unknown"] = new() { X = 10, Y = 10 },
+                ["note"] = new() { X = double.NaN, Y = double.PositiveInfinity }
+            }
+        };
+        var payload = new HomeSlideshowPayload { Slides = [slide] };
+
+        normalizer.Normalize(payload);
+
+        Assert.Equal(3, slide.Positions.Count);
+        Assert.Equal(42.5, slide.Positions["title"].X);
+        Assert.Equal(34.75, slide.Positions["title"].Y);
+        Assert.Equal(0, slide.Positions["cta"].X);
+        Assert.Equal(100, slide.Positions["cta"].Y);
+        Assert.Equal(0, slide.Positions["note"].X);
+        Assert.Equal(0, slide.Positions["note"].Y);
+        Assert.False(slide.Positions.ContainsKey("unknown"));
+    }
+
+    [Fact]
     public void Normalize_RejectsEmptySlideList()
     {
         var payload = new HomeSlideshowPayload();
