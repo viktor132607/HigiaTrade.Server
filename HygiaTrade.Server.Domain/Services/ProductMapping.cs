@@ -20,6 +20,7 @@ public static class ProductMapping
             Brand = product.Brand,
             Description = product.Description,
             MainImageUrl = product.MainImageUrl,
+            IsRepresentativeImage = product.IsRepresentativeImage,
             IsActive = product.IsActive,
             RegularPrice = product.RegularPrice,
             DiscountPercentage =
@@ -67,6 +68,7 @@ public static class ProductMapping
             Brand = product.Brand,
             Description = product.Description,
             MainImageUrl = product.MainImageUrl,
+            IsRepresentativeImage = product.IsRepresentativeImage,
             IsActive = product.IsActive,
             RegularPrice = product.RegularPrice,
             DiscountPercentage =

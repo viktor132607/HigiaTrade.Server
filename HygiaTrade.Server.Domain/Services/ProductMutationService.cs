@@ -132,6 +132,12 @@ public sealed class ProductMutationService(
             NormalizeBrand(request.Brand);
         existingProduct.Description =
             request.Description;
+        // Preserve the representative marker only while its assigned URL is unchanged.
+        // Replacing the image with an actual product photo clears the label.
+        if (!string.Equals(existingProduct.MainImageUrl, request.MainImageUrl, StringComparison.Ordinal))
+        {
+            existingProduct.IsRepresentativeImage = false;
+        }
         existingProduct.MainImageUrl =
             request.MainImageUrl;
         existingProduct.IsActive = request.IsActive;

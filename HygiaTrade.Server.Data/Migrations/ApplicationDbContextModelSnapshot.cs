@@ -253,6 +253,10 @@ namespace HygiaTrade.Data.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsRepresentativeImage")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("MainImageUrl")
                         .IsRequired()
                         .HasColumnType("text");

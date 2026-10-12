@@ -6,6 +6,7 @@ namespace HygiaTrade.Data.Entities
         public string? Brand { get; set; }
         public string Description { get; set; }
         public string MainImageUrl { get; set; }
+        public bool IsRepresentativeImage { get; set; }
         public bool IsActive { get; set; } = true;
 
         // Consumer-facing retail prices are stored VAT-inclusive.
