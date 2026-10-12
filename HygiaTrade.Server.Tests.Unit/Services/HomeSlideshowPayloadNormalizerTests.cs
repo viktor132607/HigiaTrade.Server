@@ -38,6 +38,44 @@ public sealed class HomeSlideshowPayloadNormalizerTests
     }
 
     [Fact]
+    public void Normalize_KeepsIndependentDeviceLayoutsAndFiltersInvalidEntries()
+    {
+        var slide = new HomeSlideDto
+        {
+            Elements = [new HomeSlideOverlayElement { Id = "abc", Kind = "text" }],
+            Layouts = new Dictionary<string, HomeSlideScreenLayout>
+            {
+                ["mobile"] = new()
+                {
+                    Positions = new()
+                    {
+                        ["title"] = new() { X = 7, Y = 8, Scale = 0.75 },
+                        ["extra:abc"] = new() { X = 20, Y = 35, Scale = 1.4 }
+                    },
+                    Hidden = ["cta", "cta", "not-found"]
+                },
+                ["monitor27"] = new()
+                {
+                    Positions = new() { ["title"] = new() { X = 84, Y = 200, Scale = 10 } },
+                    Hidden = ["extra:abc"]
+                },
+                ["unknown-profile"] = new() { Hidden = ["title"] }
+            }
+        };
+        normalizer.Normalize(new HomeSlideshowPayload { Slides = [slide] });
+
+        Assert.Equal(2, slide.Layouts.Count);
+        Assert.Equal(7, slide.Layouts["mobile"].Positions["title"].X);
+        Assert.Equal(0.75, slide.Layouts["mobile"].Positions["title"].Scale);
+        Assert.Equal(20, slide.Layouts["mobile"].Positions["extra:abc"].X);
+        Assert.Equal(["cta"], slide.Layouts["mobile"].Hidden);
+        Assert.Equal(100, slide.Layouts["monitor27"].Positions["title"].Y);
+        Assert.Equal(2.5, slide.Layouts["monitor27"].Positions["title"].Scale);
+        Assert.Equal(["extra:abc"], slide.Layouts["monitor27"].Hidden);
+        Assert.DoesNotContain("unknown-profile", slide.Layouts.Keys);
+    }
+
+    [Fact]
     public void Normalize_RejectsEmptySlideList()
     {
         var payload = new HomeSlideshowPayload();

@@ -69,6 +69,7 @@ public sealed class HomeSlideDto
     public string Accent { get; set; } = "from-teal-100 via-cyan-50 to-white";
     public Dictionary<string, SlideElementPosition> Positions { get; set; } = new();
     public List<HomeSlideOverlayElement> Elements { get; set; } = [];
+    public Dictionary<string, HomeSlideScreenLayout> Layouts { get; set; } = new();
 }
 
 public sealed class SlideElementPosition
@@ -88,4 +89,10 @@ public sealed class HomeSlideOverlayElement
     public string Color { get; set; } = "#0f172a";
     public string Background { get; set; } = "#0f172a";
     public int FontSize { get; set; } = 24;
+}
+
+public sealed class HomeSlideScreenLayout
+{
+    public Dictionary<string, SlideElementPosition> Positions { get; set; } = new();
+    public List<string> Hidden { get; set; } = [];
 }

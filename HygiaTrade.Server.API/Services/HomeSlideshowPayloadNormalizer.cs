@@ -96,7 +96,39 @@ public sealed class HomeSlideshowPayloadNormalizer
             allowedElements.Add("extra:" + element.Id);
         }
 
-        slide.Positions = (slide.Positions ?? new Dictionary<string, SlideElementPosition>())
+        slide.Positions = NormalizePositions(slide.Positions, allowedElements);
+
+        // Each device has independent coordinates, scale and visibility.
+        // Invalid / unknown profile IDs are never stored.
+        var validProfiles = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "mobile", "laptop", "monitor24", "monitor27",
+            "iphoneSE", "iphone15", "iphonePro", "iphoneProMax",
+            "ipadMini", "ipad11", "ipadPro11", "ipad13",
+            "macbookAir13", "macbookAir15", "macbookPro14", "macbookPro16",
+            "imac24", "tabletSmall", "tabletMedium", "tabletLarge", "tabletXL"
+        };
+        slide.Layouts = (slide.Layouts ?? new Dictionary<string, HomeSlideScreenLayout>())
+            .Where(entry => validProfiles.Contains(entry.Key) && entry.Value is not null)
+            .ToDictionary(
+                entry => entry.Key,
+                entry => new HomeSlideScreenLayout
+                {
+                    Positions = NormalizePositions(entry.Value.Positions, allowedElements),
+                    Hidden = (entry.Value.Hidden ?? [])
+                        .Where(allowedElements.Contains)
+                        .Distinct(StringComparer.Ordinal)
+                        .Take(35)
+                        .ToList()
+                },
+                StringComparer.Ordinal);
+    }
+
+    private static Dictionary<string, SlideElementPosition> NormalizePositions(
+        Dictionary<string, SlideElementPosition>? positions,
+        HashSet<string> allowedElements)
+    {
+        return (positions ?? new Dictionary<string, SlideElementPosition>())
             .Where(entry => allowedElements.Contains(entry.Key) && entry.Value is not null)
             .ToDictionary(
                 entry => entry.Key,
