@@ -90,6 +90,7 @@ namespace HygiaTrade.Data.Migrations
                     b.HasIndex("StripeSessionId").IsUnique();
                     b.HasIndex("StripeCheckoutAttemptId").IsUnique();
 
+                    b.Property<string>("GuestEmail").HasColumnType("text");
                     b.Property<string>("DeliveryRegion").HasColumnType("text");
                     b.Property<string>("PaymentMethod").HasColumnType("text");
                     b.Property<string>("DeliveryMethod").HasColumnType("text");
@@ -145,7 +146,7 @@ namespace HygiaTrade.Data.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("UserId")
+                    b.Property<Guid?>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -449,9 +450,7 @@ namespace HygiaTrade.Data.Migrations
                 {
                     b.HasOne("HygiaTrade.Data.Entities.User", "User")
                         .WithMany("Orders")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("UserId");
 
                     b.Navigation("User");
                 });
