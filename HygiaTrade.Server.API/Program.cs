@@ -354,6 +354,15 @@ using (IServiceScope brandScope = app.Services.CreateScope())
     app.Logger.LogInformation("Synchronized {Count} missing or logo-less brand records.", synced);
 }
 
+// Assign newly committed category artwork to empty category image slots.
+using (IServiceScope categoryImageScope = app.Services.CreateScope())
+{
+    ApplicationDbContext categoryDb =
+        categoryImageScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    int assigned = await ImportedCategoryImageBackfill.ApplyAsync(categoryDb);
+    app.Logger.LogInformation("Assigned {Count} uploaded category images.", assigned);
+}
+
 app.Run();
 
 static string GetRateLimitPartitionKey(HttpContext context) =>
