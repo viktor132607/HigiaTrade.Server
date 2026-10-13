@@ -5,6 +5,7 @@ namespace HygiaTrade.Common.Responses.OrderItem;
 public class OrderItemResponse
 {
     public required Guid ProductId { get; set; }
+    public Guid? PackagingOptionId { get; set; }
 
     // Legacy/current values remain VAT-inclusive.
     public required decimal SinglePrice { get; set; }

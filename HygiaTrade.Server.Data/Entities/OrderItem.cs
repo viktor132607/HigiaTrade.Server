@@ -9,6 +9,7 @@ namespace HygiaTrade.Data.Entities
         public Order Order { get; set; } = null!;
 
         public Guid ProductId { get; set; }
+        public Guid? PackagingOptionId { get; set; }
 
         public Product Product { get; set; } = null!;
 

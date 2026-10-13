@@ -38,6 +38,7 @@ public static class OrderMapping
                     new OrderItemResponse
                     {
                         ProductId = item.ProductId,
+                        PackagingOptionId = item.PackagingOptionId,
                         SinglePrice = item.SinglePrice,
                         TotalPrice = item.TotalPrice,
                         SinglePriceExclVat =

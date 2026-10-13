@@ -11,5 +11,6 @@ public class GuestOrderRequest : CheckoutDetails
 public class GuestOrderItemRequest
 {
     public Guid ProductId { get; set; }
+    public Guid? PackagingOptionId { get; set; }
     [Range(1, int.MaxValue)] public int Quantity { get; set; }
 }
