@@ -18,7 +18,8 @@ public class ProductRepository(ApplicationDbContext context) : Repository<Produc
         IQueryable<Product> query = _context.Products
             .AsNoTracking()
             .Include(p => p.Category)
-            .Include(p => p.SecondaryImages);
+            .Include(p => p.SecondaryImages)
+            .Include(p => p.PackagingOptions);
 
         foreach (Expression<Func<Product, object>> include in filter.Includes)
         {
@@ -75,6 +76,7 @@ public class ProductRepository(ApplicationDbContext context) : Repository<Produc
         Product? product = await _context.Products
             .Include(p => p.Category)
             .Include(p => p.SecondaryImages)
+            .Include(p => p.PackagingOptions)
             .FirstOrDefaultAsync(p => p.Id == id);
 
         PropertyInfo? isDeletedProperty = typeof(Product).GetProperty("IsDeleted");
@@ -95,7 +97,8 @@ public class ProductRepository(ApplicationDbContext context) : Repository<Produc
     {
         IQueryable<Product> query = _context.Products
             .Include(p => p.Category)
-            .Include(p => p.SecondaryImages);
+            .Include(p => p.SecondaryImages)
+            .Include(p => p.PackagingOptions);
 
         PropertyInfo? isDeletedProperty = typeof(Product).GetProperty("IsDeleted");
 
@@ -121,6 +124,7 @@ public class ProductRepository(ApplicationDbContext context) : Repository<Produc
         return await query
             .Include(x => x.Category)
             .Include(x => x.SecondaryImages)
+            .Include(x => x.PackagingOptions)
             .OrderBy(x => Guid.NewGuid())
             .Take(numOfBestSellers)
             .ToListAsync();

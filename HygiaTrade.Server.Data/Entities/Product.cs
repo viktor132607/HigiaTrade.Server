@@ -27,6 +27,7 @@ namespace HygiaTrade.Data.Entities
 
         public Category Category { get; set; }
 
+        public ICollection<ProductPackagingOption> PackagingOptions { get; set; } = new List<ProductPackagingOption>();
         public ICollection<Review> Reviews { get; set; } = new List<Review>();
         public ICollection<Image> SecondaryImages { get; set; } = new List<Image>();
     }

@@ -10,6 +10,7 @@ namespace HygiaTrade.Data
     {
         public DbSet<User> Users => Set<User>();
         public DbSet<Product> Products => Set<Product>();
+        public DbSet<ProductPackagingOption> ProductPackagingOptions => Set<ProductPackagingOption>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Brand> Brands => Set<Brand>();
         public DbSet<Image> Images => Set<Image>();
@@ -46,6 +47,17 @@ namespace HygiaTrade.Data
             builder.Entity<Product>()
                 .Property(p => p.VatRate)
                 .HasPrecision(5, 2);
+
+            builder.Entity<ProductPackagingOption>()
+                .HasOne(option => option.Product)
+                .WithMany(product => product.PackagingOptions)
+                .HasForeignKey(option => option.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+            builder.Entity<ProductPackagingOption>()
+                .HasIndex(option => new { option.ProductId, option.SortOrder });
+            builder.Entity<ProductPackagingOption>()
+                .Property(option => option.PriceInclVat)
+                .HasPrecision(18, 2);
 
             builder.Entity<Product>()
                 .HasIndex(p => p.Brand);
