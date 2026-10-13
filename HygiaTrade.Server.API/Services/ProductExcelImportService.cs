@@ -874,6 +874,7 @@ public sealed class ProductExcelImportService(
                     parsed.DiscountPercentage,
                     parsed.DiscountedPrice);
 
+                product.PackagingOptions = HygiaTrade.Data.Seed.ProductPackagingFactory.Create(product);
                 db.Products.Add(product);
 
                 productsByKey[productKey] = [product];

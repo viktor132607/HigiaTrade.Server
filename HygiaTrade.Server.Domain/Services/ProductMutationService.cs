@@ -3,6 +3,7 @@ using HygiaTrade.Common.Responses.Product;
 using HygiaTrade.Core.Exceptions;
 using HygiaTrade.Data.Entities;
 using HygiaTrade.Data.Interfaces;
+using HygiaTrade.Data.Seed;
 using HygiaTrade.Domain.Pricing;
 
 namespace HygiaTrade.Domain.Services;
@@ -69,6 +70,8 @@ public sealed class ProductMutationService(
             request.RegularPrice,
             request.DiscountPercentage,
             request.DiscountedPrice);
+
+        product.PackagingOptions = ProductPackagingFactory.Create(product);
 
         product =
             await productRepository.AddAsync(product)

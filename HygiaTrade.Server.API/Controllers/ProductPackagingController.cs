@@ -55,14 +55,15 @@ public sealed class ProductPackagingController(ApplicationDbContext db) : Contro
         var stored = await db.ProductPackagingOptions
             .Where(o => o.ProductId == productId && !o.IsDeleted).ToListAsync();
 
-        if (stored.Any(x => x.IsDefault && !requested.Any(y => y.Id == x.Id && y.IsDefault)))
-            return BadRequest(new { message = "The default package cannot be replaced." });
-
+        var retained = new HashSet<Guid>();
         for (int index = 0; index < requested.Count; index++)
         {
             var row = requested[index];
             var existing = row.Id is Guid id && id != Guid.Empty
-                ? stored.FirstOrDefault(x => x.Id == id) : null;
+                ? stored.FirstOrDefault(x => x.Id == id)
+                : stored.FirstOrDefault(x => x.IsDefault && row.IsDefault) ??
+                  stored.FirstOrDefault(x => !x.IsDefault && !row.IsDefault &&
+                    string.Equals(x.Label, row.Label.Trim(), StringComparison.OrdinalIgnoreCase));
             if (row.Id is Guid supplied && supplied != Guid.Empty && existing is null)
                 return BadRequest(new { message = "Unknown packaging option." });
 
@@ -76,9 +77,8 @@ public sealed class ProductPackagingController(ApplicationDbContext db) : Contro
             option.IsActive = true;
             option.ModifiedOn = DateTime.UtcNow;
             if (existing is null) db.ProductPackagingOptions.Add(option);
+            retained.Add(option.Id);
         }
-
-        var retained = requested.Where(x => x.Id.HasValue).Select(x => x.Id!.Value).ToHashSet();
         foreach (var old in stored.Where(x => !retained.Contains(x.Id)))
         {
             old.IsActive = false;
