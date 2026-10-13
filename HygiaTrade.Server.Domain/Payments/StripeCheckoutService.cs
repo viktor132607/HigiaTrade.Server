@@ -38,16 +38,23 @@ public sealed class StripeCheckoutService(IStripeOrderRepository repository, IOr
                 StripeCheckoutFingerprint = fingerprint, StripeLiveMode = gateway.LiveMode, StripeExpiresAt = DateTime.UtcNow.AddHours(1)
             };
             CheckoutPolicy.Apply(created, request);
-            foreach (var group in request.Items.GroupBy(i => i.ProductId).OrderBy(g => g.Key))
+            foreach (var group in request.Items
+                .GroupBy(i => new { i.ProductId, i.PackagingOptionId })
+                .OrderBy(g => g.Key.ProductId))
             {
                 int quantity = checked(group.Sum(i => i.Quantity));
-                var product = await repository.LockProductAsync(group.Key);
-                if (product is null || !product.IsActive || product.IsDeleted || product.Quantity < quantity)
+                var product = await repository.LockProductAsync(group.Key.ProductId);
+                if (product is null || !product.IsActive || product.IsDeleted)
+                    throw new AppException("Unavailable product.").SetStatusCode(409);
+                var packaging = ProductPackagingPolicy.Resolve(product, group.Key.PackagingOptionId);
+                if (ProductPackagingPolicy.Available(product, packaging) < quantity)
                     throw new AppException("Insufficient stock for the selected products.").SetStatusCode(409);
-                var item = new OrderItem { ProductId = product.Id, Title = product.Title, PrimaryImageUri = product.MainImageUrl, Quantity = quantity, SinglePrice = 0m, TotalPrice = 0m };
+                var item = new OrderItem { ProductId = product.Id, PackagingOptionId = group.Key.PackagingOptionId,
+                    Title = packaging is null ? product.Title : product.Title + " (" + packaging.Label + ")",
+                    PrimaryImageUri = product.MainImageUrl, Quantity = quantity, SinglePrice = 0m, TotalPrice = 0m };
                 pricing.ApplyCurrentPricing(item, product, quantity);
                 created.Items.Add(item);
-                product.Quantity -= (uint)quantity;
+                ProductPackagingPolicy.Take(product, packaging, quantity);
             }
             pricing.UpdateOrderPrices(created);
             CheckoutPolicy.EnsureMinimum(created.OrderTotalPrice);

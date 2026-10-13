@@ -25,7 +25,8 @@ public sealed class OrderStockService(
                     item.ProductId);
 
             if (product is null || !product.IsActive || product.IsDeleted ||
-                product.Quantity < item.Quantity)
+                ProductPackagingPolicy.Available(product,
+                    ProductPackagingPolicy.Resolve(product, item.PackagingOptionId)) < item.Quantity)
             {
                 throw new AppException(
                         $"Product '{item.Title}' is out of stock or has insufficient quantity.")
@@ -49,14 +50,15 @@ public sealed class OrderStockService(
                     .SetStatusCode(404);
             }
 
-            if (product.Quantity < item.Quantity)
+            var packaging = ProductPackagingPolicy.Resolve(product, item.PackagingOptionId);
+            if (ProductPackagingPolicy.Available(product, packaging) < item.Quantity)
             {
                 throw new AppException(
                         $"Product '{item.Title}' is out of stock or has insufficient quantity.")
                     .SetStatusCode(409);
             }
 
-            product.Quantity -= (uint)item.Quantity;
+            ProductPackagingPolicy.Take(product, packaging, item.Quantity);
 
             await productRepository.UpdateAsync(product);
         }

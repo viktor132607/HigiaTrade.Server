@@ -12,6 +12,7 @@ public sealed class GuestOrderRepository(
         GetAvailableProductsAsync(
             IReadOnlyCollection<Guid> productIds) =>
         await context.Products
+            .Include(product => product.PackagingOptions)
             .Where(product =>
                 productIds.Contains(product.Id) &&
                 product.IsActive &&

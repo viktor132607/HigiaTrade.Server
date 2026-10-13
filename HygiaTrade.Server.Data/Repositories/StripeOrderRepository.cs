@@ -23,9 +23,15 @@ public sealed class StripeOrderRepository(ApplicationDbContext context) : IStrip
         .SingleOrDefaultAsync(o => o.StripeCheckoutAttemptId == id && !o.IsDeleted);
     public Task<Order?> FindSessionAsync(string id) => context.Orders.Include(o => o.Items)
         .SingleOrDefaultAsync(o => o.StripeSessionId == id && !o.IsDeleted);
-    public Task<Product?> LockProductAsync(Guid id) => context.Products
-        .FromSqlInterpolated($"SELECT * FROM \"Products\" WHERE \"Id\" = {id} FOR UPDATE")
-        .SingleOrDefaultAsync();
+    public async Task<Product?> LockProductAsync(Guid id)
+    {
+        var product = await context.Products
+            .FromSqlInterpolated($"SELECT * FROM \"Products\" WHERE \"Id\" = {id} FOR UPDATE")
+            .SingleOrDefaultAsync();
+        if (product is not null)
+            await context.Entry(product).Collection(p => p.PackagingOptions).LoadAsync();
+        return product;
+    }
     public async Task AddAsync(Order order) { context.Orders.Add(order); await context.SaveChangesAsync(); }
     public Task SaveAsync() => context.SaveChangesAsync();
     public Task<List<Order>> PendingAsync() => context.Orders.AsNoTracking().Include(o => o.Items)
@@ -40,7 +46,12 @@ public sealed class StripeOrderRepository(ApplicationDbContext context) : IStrip
             foreach (var item in order.Items.OrderBy(i => i.ProductId))
             {
                 var product = await LockProductAsync(item.ProductId);
-                if (product is not null) product.Quantity += (uint)item.Quantity;
+                if (product is null) continue;
+                var option = item.PackagingOptionId is Guid packagingId
+                    ? product.PackagingOptions.FirstOrDefault(x => x.Id == packagingId)
+                    : null;
+                if (option is null || option.IsDefault) product.Quantity += (uint)item.Quantity;
+                else option.StockQuantity += (uint)item.Quantity;
             }
             order.PaymentStatus = "Expired";
             order.Status = OrderStatus.Cancelled;
@@ -58,7 +69,9 @@ public sealed class StripeOrderRepository(ApplicationDbContext context) : IStrip
                 {
                     foreach (var purchased in order.Items)
                     {
-                        var item = draft.Items.FirstOrDefault(i => i.ProductId == purchased.ProductId);
+                        var item = draft.Items.FirstOrDefault(i =>
+                            i.ProductId == purchased.ProductId &&
+                            i.PackagingOptionId == purchased.PackagingOptionId);
                         if (item is null) continue;
                         if (item.Quantity <= purchased.Quantity) { draft.Items.Remove(item); context.OrderItems.Remove(item); }
                         else

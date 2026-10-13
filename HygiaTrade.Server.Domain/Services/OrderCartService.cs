@@ -66,9 +66,11 @@ public sealed class OrderCartService(
                 .SetStatusCode(404);
         }
 
+        var packaging = ProductPackagingPolicy.Resolve(product, request.PackagingOptionId);
         OrderItem? existingItem = order.Items
             .FirstOrDefault(item =>
-                item.ProductId == request.ProductId);
+                item.ProductId == request.ProductId &&
+                item.PackagingOptionId == request.PackagingOptionId);
 
         int nextQuantity =
             (existingItem?.Quantity ?? 0) +
@@ -81,7 +83,7 @@ public sealed class OrderCartService(
                 .SetStatusCode(400);
         }
 
-        if (product.Quantity < nextQuantity)
+        if (ProductPackagingPolicy.Available(product, packaging) < nextQuantity)
         {
             throw new AppException(
                     "Insufficient stock for the selected quantity.")
@@ -101,11 +103,12 @@ public sealed class OrderCartService(
             {
                 OrderId = order.Id,
                 ProductId = request.ProductId,
+                PackagingOptionId = request.PackagingOptionId,
                 Quantity = request.Quantity,
                 SinglePrice = 0m,
                 TotalPrice = 0m,
                 PrimaryImageUri = product.MainImageUrl,
-                Title = product.Title,
+                Title = packaging is null ? product.Title : product.Title + " (" + packaging.Label + ")",
             };
 
             pricingService.ApplyCurrentPricing(
@@ -143,7 +146,8 @@ public sealed class OrderCartService(
         OrderItem? item = order.Items
             .FirstOrDefault(orderItem =>
                 orderItem.ProductId ==
-                request.ProductId);
+                request.ProductId &&
+                orderItem.PackagingOptionId == request.PackagingOptionId);
 
         if (item is null)
         {

@@ -70,8 +70,9 @@ public sealed class GuestOrderCheckoutService(
             Product product =
                 products[requestedItem.ProductId];
 
+            var packaging = ProductPackagingPolicy.Resolve(product, requestedItem.PackagingOptionId);
             if (requestedItem.Quantity < 1 ||
-                product.Quantity <
+                ProductPackagingPolicy.Available(product, packaging) <
                 requestedItem.Quantity)
             {
                 throw new AppException(
@@ -82,10 +83,11 @@ public sealed class GuestOrderCheckoutService(
             var orderItem = new OrderItem
             {
                 ProductId = product.Id,
+                PackagingOptionId = requestedItem.PackagingOptionId,
                 Quantity = requestedItem.Quantity,
                 SinglePrice = 0m,
                 TotalPrice = 0m,
-                Title = product.Title,
+                Title = packaging is null ? product.Title : product.Title + " (" + packaging.Label + ")",
                 PrimaryImageUri = product.MainImageUrl
             };
 
@@ -96,8 +98,7 @@ public sealed class GuestOrderCheckoutService(
 
             order.Items.Add(orderItem);
 
-            product.Quantity -=
-                (uint)requestedItem.Quantity;
+            ProductPackagingPolicy.Take(product, packaging, requestedItem.Quantity);
         }
 
         pricingService.UpdateOrderPrices(order);

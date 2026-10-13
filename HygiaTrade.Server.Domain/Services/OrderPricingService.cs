@@ -1,4 +1,5 @@
 using HygiaTrade.Core.Exceptions;
+using HygiaTrade.Core.Enums;
 using HygiaTrade.Data.Entities;
 using HygiaTrade.Data.Interfaces;
 using HygiaTrade.Domain.Pricing;
@@ -26,6 +27,21 @@ public sealed class OrderPricingService(
         Product product,
         int quantity)
     {
+        var packaging = ProductPackagingPolicy.Resolve(product, item.PackagingOptionId);
+        if (packaging is { IsDefault: false })
+        {
+            var grossPrice = ProductPricingCalculator.RoundMoney(packaging.PriceInclVat);
+            item.Quantity = quantity;
+            item.SinglePrice = grossPrice;
+            item.SinglePriceExclVat = ProductPricingCalculator.GrossToNet(grossPrice, product.VatRate);
+            item.TotalPrice = ProductPricingCalculator.RoundMoney(grossPrice * quantity);
+            item.TotalPriceExclVat = ProductPricingCalculator.GrossToNet(item.TotalPrice, product.VatRate);
+            item.VatAmount = ProductPricingCalculator.RoundMoney(item.TotalPrice - item.TotalPriceExclVat);
+            item.VatRate = product.VatRate;
+            item.PricingTier = PricingTier.Retail;
+            return;
+        }
+
         ProductPriceBreakdown pricing =
             ProductPricingCalculator.Calculate(
                 product,
