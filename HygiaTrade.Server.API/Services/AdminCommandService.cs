@@ -1,4 +1,5 @@
 using HygiaTrade.Data;
+using HygiaTrade.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace HygiaTrade.API.Services;
@@ -38,9 +39,7 @@ public sealed class AdminCommandService(ApplicationDbContext db) : IAdminCommand
         {
             // Includes active/inactive variants, but never deleted variants or products.
             // Base product stock is the source of truth for default packaging.
-            affectedPackaging = await db.ProductPackagingOptions
-                .Where(option => !option.IsDeleted &&
-                    db.Products.Any(product => product.Id == option.ProductId && !product.IsDeleted))
+            affectedPackaging = await AdminCommandStockTargets.Packaging(db)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(option => option.StockQuantity, quantity)
                     .SetProperty(option => option.ModifiedOn, now), cancellationToken);
@@ -49,4 +48,13 @@ public sealed class AdminCommandService(ApplicationDbContext db) : IAdminCommand
         await transaction.CommitAsync(cancellationToken);
         return new AdminCommandResult(affected, parsed.Price, parsed.Quantity, affectedPackaging);
     }
+}
+
+
+// The same eligible set is used for updates and coverage tests.
+public static class AdminCommandStockTargets
+{
+    public static IQueryable<ProductPackagingOption> Packaging(ApplicationDbContext db) =>
+        db.ProductPackagingOptions.Where(option => !option.IsDeleted &&
+            db.Products.Any(product => product.Id == option.ProductId && !product.IsDeleted));
 }
