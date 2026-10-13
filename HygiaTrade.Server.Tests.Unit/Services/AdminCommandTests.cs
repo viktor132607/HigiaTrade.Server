@@ -3,7 +3,10 @@ using System.Linq;
 using HygiaTrade.API.Controllers;
 using HygiaTrade.API.Services;
 using HygiaTrade.Core.StaticClasses;
+using HygiaTrade.Data;
+using HygiaTrade.Data.Entities;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace HygiaTrade.Server.Tests.Unit.Services;
@@ -47,6 +50,59 @@ public class AdminCommandTests
     [InlineData("/products selected price 100")]
     public void RejectsInvalidCommands(string? input) =>
         Assert.Throws<ArgumentException>(() => AdminCommandParser.Parse(input));
+
+    [Fact]
+    public void QuantityCommandAppliesToPackagedStockWithoutChangingPrices()
+    {
+        var parsed = AdminCommandParser.Parse("/products all quantity 100");
+        Assert.Equal((uint)100, parsed.Quantity);
+        Assert.Null(parsed.Price);
+    }
+
+    [Fact]
+    public void BulkStockTargetsIncludeEveryPackagingOptionOnNonDeletedProducts()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        using var db = new ApplicationDbContext(options);
+        var category = new Category { Name = "Cleaning", ImageUri = null };
+        var active = new Product
+        {
+            Title = "Dishwasher", Description = "", MainImageUrl = "",
+            CategoryId = category.Id, Category = category
+        };
+        var inactive = new Product
+        {
+            Title = "Laundry", Description = "", MainImageUrl = "",
+            CategoryId = category.Id, Category = category, IsActive = false
+        };
+        var deleted = new Product
+        {
+            Title = "Removed", Description = "", MainImageUrl = "",
+            CategoryId = category.Id, Category = category, IsDeleted = true
+        };
+        db.Products.AddRange(active, inactive, deleted);
+        db.ProductPackagingOptions.AddRange(
+            new ProductPackagingOption { ProductId = active.Id, Label = "1 л", IsDefault = true },
+            new ProductPackagingOption { ProductId = active.Id, Label = "3 л" },
+            new ProductPackagingOption { ProductId = active.Id, Label = "12 × 1 л", IsActive = false },
+            new ProductPackagingOption { ProductId = inactive.Id, Label = "20 × 3 л" },
+            new ProductPackagingOption { ProductId = active.Id, Label = "Deleted option", IsDeleted = true },
+            new ProductPackagingOption { ProductId = deleted.Id, Label = "Deleted product option" }
+        );
+        db.SaveChanges();
+
+        var targeted = AdminCommandStockTargets.Packaging(db).Select(option => option.Label).ToList();
+
+        Assert.Equal(4, targeted.Count);
+        Assert.Contains("1 л", targeted);
+        Assert.Contains("3 л", targeted);
+        Assert.Contains("12 × 1 л", targeted);
+        Assert.Contains("20 × 3 л", targeted);
+        Assert.DoesNotContain("Deleted option", targeted);
+        Assert.DoesNotContain("Deleted product option", targeted);
+    }
 
     [Fact]
     public void EndpointRequiresAdministrator()
