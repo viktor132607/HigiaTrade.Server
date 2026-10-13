@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HygiaTrade.API.Services;
 
-public sealed record AdminCommandResult(int AffectedProducts, decimal? Price, uint? Quantity);
+public sealed record AdminCommandResult(int AffectedProducts, decimal? Price, uint? Quantity, int AffectedPackagingOptions);
 
 public interface IAdminCommandService
 {
@@ -21,8 +21,10 @@ public sealed class AdminCommandService(ApplicationDbContext db) : IAdminCommand
         var quantity = parsed.Quantity.GetValueOrDefault();
         var now = DateTime.UtcNow;
 
-        // One atomic database statement, including inactive products and every category.
-        // A uniform price also removes discounts and sets enabled wholesale prices to the same amount.
+        // All product and packaging stock updates succeed or roll back together.
+        // A price-only command leaves packaging-specific prices and stock untouched.
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
         var affected = await db.Products.Where(p => !p.IsDeleted).ExecuteUpdateAsync(setters => setters
             .SetProperty(p => p.RegularPrice, p => setPrice ? price : p.RegularPrice)
             .SetProperty(p => p.DiscountedPrice, p => setPrice ? price : p.DiscountedPrice)
@@ -31,6 +33,20 @@ public sealed class AdminCommandService(ApplicationDbContext db) : IAdminCommand
             .SetProperty(p => p.Quantity, p => setQuantity ? quantity : p.Quantity)
             .SetProperty(p => p.ModifiedOn, now), cancellationToken);
 
-        return new AdminCommandResult(affected, parsed.Price, parsed.Quantity);
+        var affectedPackaging = 0;
+        if (setQuantity)
+        {
+            // Includes active/inactive variants, but never deleted variants or products.
+            // Base product stock is the source of truth for default packaging.
+            affectedPackaging = await db.ProductPackagingOptions
+                .Where(option => !option.IsDeleted &&
+                    db.Products.Any(product => product.Id == option.ProductId && !product.IsDeleted))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(option => option.StockQuantity, quantity)
+                    .SetProperty(option => option.ModifiedOn, now), cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return new AdminCommandResult(affected, parsed.Price, parsed.Quantity, affectedPackaging);
     }
 }
