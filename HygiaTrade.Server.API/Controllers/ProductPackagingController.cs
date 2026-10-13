@@ -18,7 +18,7 @@ public sealed class ProductPackagingController(ApplicationDbContext db) : Contro
     public async Task<IActionResult> Get(Guid productId)
     {
         var product = await db.Products.AsNoTracking()
-            .Where(p => p.Id == productId && !p.IsDeleted && p.IsActive)
+            .Where(p => p.Id == productId && !p.IsDeleted && (p.IsActive || User.IsInRole(Roles.Admin)))
             .Select(p => new { p.Id, p.RegularPrice, p.Quantity })
             .FirstOrDefaultAsync();
         if (product is null) return NotFound();
@@ -46,7 +46,7 @@ public sealed class ProductPackagingController(ApplicationDbContext db) : Contro
             requested.Count(x => x.IsDefault) != 1 ||
             requested.Any(x => string.IsNullOrWhiteSpace(x.Label) || x.Label.Trim().Length > 100 ||
                                x.UnitsPerPackage is < 1 or > 10000 ||
-                               x.PriceInclVat is < 0m or > 1000000m) ||
+                               x.PriceInclVat is < 0m or > 1000000m || (!x.IsDefault && x.StockQuantity > 0 && x.PriceInclVat == 0m)) ||
             requested.Select(x => x.Label.Trim().ToUpperInvariant()).Distinct().Count() != requested.Count ||
             requested.Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty).Select(x => x.Id).Distinct().Count()
                 != requested.Count(x => x.Id.HasValue && x.Id.Value != Guid.Empty))
